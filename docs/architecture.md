@@ -244,3 +244,30 @@ flowchart TD
 - Enforce per-user and provider/API rate limits, bounded retries, backpressure and fair scheduling. Do not exceed the concurrency cap to work around rate limits.
 - The concurrency limit must be configurable by deployment operator for future capacity tuning, with **3** as this user's approved default.
 - Surface queued position, task priority, active/queued state, dependencies, current step and persisted progress in the task UI.
+
+
+## 11. AI task scheduling and worker concurrency — approved policy
+
+### Approved concurrency
+- Initial maximum: **three independent delegated AI tasks executing concurrently** across the user's workspace.
+- Enforce the cap in the backend worker scheduler using a durable queue and database-backed task leases/semaphores. Never rely on frontend/browser state to enforce concurrency.
+- Independent tasks may run at the same time while active slots are available.
+- Tasks with dependencies are represented as a dependency graph or ordered steps and only become eligible after prerequisites succeed.
+- Waiting-for-user tasks release their active worker slot; unrelated queued tasks may then proceed.
+- Completed, cancelled and terminally failed tasks release their slots.
+- Limit is operator-configurable for hosting/API cost management, with three as the approved initial setting.
+
+### Priority-aware scheduling
+- Persist a priority field on every task; default to Normal.
+- Priority may be set by the user or by an explicit AI planning rule, and can be changed by the user.
+- Select eligible queued work by priority first, then FIFO order within the same priority.
+- Priority changes affect queued work only; do not pre-empt a running task in the initial implementation.
+- Tasks at a higher priority still respect dependencies and the three-task concurrency cap.
+- When all slots are occupied, additional tasks remain Queued with their priority and queue position visible.
+
+### Reliability and visibility
+- Persist queue state, lease/heartbeat, checkpoints, attempt count, last error and timestamps.
+- Resume safely after worker restart or deployment.
+- Use idempotency keys, bounded retries with backoff, and a clear terminal Failed state.
+- Show active task slot usage and queued task count in the AI Assistant dashboard.
+- No proactive notifications for task state changes.
