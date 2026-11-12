@@ -304,3 +304,12 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - Provide controls for Edit, Ask ChatGPT to revise, Save, Discard, and Approve & Send.
 - Provide **Save to Email Drafts** only as a separate optional action, with the destination account displayed.
 - The draft remains accessible from its source email and conversation.
+
+
+## 17. New outbound email — sending account selection
+
+- When a user composes a new email in the AI Assistant, the sending account must be selected for that particular message.
+- Do not preselect a default sending account.
+- If the user explicitly names a connected account in their instruction, show that account as selected.
+- Otherwise, ask the user to choose from their connected iCloud/Gmail accounts before sending.
+- Replies and forwards default to the source email account, with an editable account choice.
