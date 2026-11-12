@@ -398,3 +398,15 @@ Colour is supplementary to the written priority label; never communicate priorit
 - When a deadline is extended, refresh the effective priority and its explanation; do not display an obsolete escalation.
 - Use IST by default (or the user's configured timezone) for deadline entry and display.
 - Colour mapping remains: Urgent red, High amber, Normal blue, Low green. Always display the written label too.
+
+
+## 24. Hard and target deadline UI — approved
+
+- Every task deadline is visibly identified as either **Hard deadline** or **Target deadline**.
+- Provide a control to select or change the type in task details.
+- When type is not explicitly established, default to Target and allow the user to change it.
+- Display the deadline date/time, remaining time, deadline type, effective priority and reason for any automatic escalation.
+- Hard deadline escalation: High within 72 hours; Urgent within 24 hours and while overdue.
+- Target deadline escalation: High within 24 hours and while overdue; never Urgent solely because the target time has passed.
+- Preserve the written priority label and existing colour mapping: Urgent red, High amber, Normal blue, Low green.
+- Explain whether the deadline type was set by the user, defaulted, or AI-classified. Allow the user to correct it.
