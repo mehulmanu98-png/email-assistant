@@ -13,7 +13,7 @@
 - No push, email, WhatsApp, SMS, desktop, or other proactive notification delivery.
 - Initial mailbox import is the most recent 90 days per account; older mail is retrieved on demand where provider APIs permit.
 - Supported mail providers: multiple iCloud Mail accounts and multiple Gmail accounts.
-- AI preference: ChatGPT/OpenAI models, using supported OpenAI API or eligible ChatGPT Apps integration. The application must disclose API billing separately if API use is selected.
+- AI preference: use the supported Sign in with ChatGPT / ChatGPT plan usage route if the user's account and exact self-hosted deployment are eligible. No OpenAI API billing or paid fallback is approved; see Section 17 for the zero-cost and SIWC compliance requirements.
 
 ## 2. High-level architecture
 
