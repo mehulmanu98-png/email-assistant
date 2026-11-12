@@ -271,3 +271,29 @@ flowchart TD
 - Use idempotency keys, bounded retries with backoff, and a clear terminal Failed state.
 - Show active task slot usage and queued task count in the AI Assistant dashboard.
 - No proactive notifications for task state changes.
+
+
+## 12. AI task priority model — approved
+
+### Priority values
+Use a controlled enum:
+- `urgent`
+- `high`
+- `normal`
+- `low`
+
+Default new tasks to `normal`.
+
+### Assignment
+- Store both `priority` and `priority_source` (for example: `user`, `ai_recommended`, `default`), plus an optional concise `priority_reason`.
+- The AI may recommend Urgent or High only when supported by an explicit user instruction, a real due date, or clear task/business impact. Never invent a deadline.
+- A user-set priority takes precedence over automatic reclassification until the user explicitly changes or resets it.
+- Keep email priority and delegated-task priority as separate data fields and concepts.
+
+### Scheduling
+- Select eligible queued work by Urgent > High > Normal > Low.
+- Use FIFO ordering within the same priority level.
+- Respect dependencies and the global maximum of three concurrent tasks.
+- Reordering applies to queued tasks only; do not pre-empt active work in the initial implementation.
+- Tasks in Waiting for User do not consume a worker slot.
+- Display the current priority, source, and reason in the dashboard when available.
