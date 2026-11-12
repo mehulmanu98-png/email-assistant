@@ -323,3 +323,16 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - If that receiving account is disconnected or cannot send, show a reconnect/error state. Never silently send the reply from another account.
 - For a forwarded email, show the original receiving account as the default From account. An explicit alternative can be chosen in the forward composer.
 - If a visually grouped duplicate exists across accounts, actions are scoped to the exact selected source copy. The source account determines the reply From address.
+
+
+## 19. Independent cloud AI task execution — approved
+
+- The compact task side panel shows tasks that continue running in the cloud even after the user closes the dashboard or leaves the related AI conversation.
+- Task status and progress are stored server-side and are available when the user returns on Mac or iPhone.
+- Show the latest persisted status, current step, completed steps, next step, last update time and any blocker.
+- Use the following states: Queued, In Progress, Waiting for User, Completed, Failed, Cancelled.
+- Tasks waiting for the user must clearly state what input or approval is needed.
+- Provide task details with a progress timeline and controls to request an update, pause, resume or cancel when the task state allows it.
+- Do not show fabricated percentage progress. Progress must reflect actual completed steps or checkpoints.
+- No proactive notifications. New progress is visible when the dashboard is opened or refreshed.
+- Closing the browser or switching devices must not cancel an accepted task.
