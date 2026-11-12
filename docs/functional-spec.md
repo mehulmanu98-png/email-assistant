@@ -112,3 +112,71 @@ Use only the email context necessary for the requested task. Ground responses in
 - Block actions must accurately describe their actual provider or application scope.
 - Apple Shortcut commands must be authenticated, idempotent and report execution status.
 - Secrets must be stored in a deployment secret manager, never committed to this repository.
+
+
+## 7. AI Assistant as an action-taking dashboard controller
+
+The AI Assistant must understand natural-language commands and execute supported actions through authenticated backend functions. It is not limited to answering questions.
+
+Required command examples:
+
+- **"Show this email as priority."**
+  - Mark the selected email as Priority in the Email Assistant.
+  - Make the priority status visible in the inbox and search/filter views.
+  - Where supported by the email provider, also apply its native star/flag/important marker. The application must distinguish its own priority label from the provider's native marker.
+
+- **"Remove this email from follow-up."**
+  - Remove the selected conversation's follow-up tracking entry.
+  - Do not delete, archive, or otherwise alter the underlying email or conversation.
+  - Confirm the follow-up entry is no longer active.
+
+- **"Get a task update."**
+  - Find the relevant AI-assigned task or follow-up.
+  - Report its current status (queued, in progress, waiting for user, completed, or failed), what has been done, what remains, and any blocker.
+  - If the user has not identified which task, show the current task list or ask which one they mean.
+
+Other supported command examples:
+- "Mark this email as priority."
+- "Remove this conversation from follow-ups."
+- "Show me the status of the quotation comparison."
+- "What tasks are you working on?"
+- "Prepare a reply to this email."
+- "Add a reminder to call Tony tomorrow at 11 AM."
+- "Create a note about the revised quotation."
+
+### Action execution safeguards
+
+- The assistant must resolve "this email", "this conversation", or "this task" from the current dashboard selection/context.
+- Before performing a consequential action, show a clear interpretation and ask for confirmation where appropriate.
+- Low-risk reversible actions (such as setting an app-level priority or removing a follow-up tracking link) may execute immediately when the target is unambiguous, with the result shown in the dashboard.
+- Do not claim success until the backend/provider or Apple Shortcut reports successful completion.
+- Each action must be idempotent or protected against duplicate execution.
+- Record action result and timestamp in the activity history without logging full email content.
+
+## 8. Native Apple Notes and Reminders are the required destinations
+
+Creating a record only inside the Email Assistant database does **not** satisfy an Add Note or Add Reminder command.
+
+- **Add Reminder** must create a real item in the user's Apple Reminders app.
+- **Add Note** must create a real note in the user's Apple Notes app.
+- The user can issue either command in natural language, without filling in a form.
+- The backend parses the intent and content, then queues a secure command for an authorised Apple Shortcut on the user's Mac or iPhone.
+- The Shortcut performs the native action in the relevant Apple app.
+- A command remains visibly **Pending on device** until a Shortcut executes it.
+- The dashboard changes it to **Completed** only after a confirmed Shortcut result; errors are shown clearly and can be retried safely.
+- Preserve a link/reference to the originating email or thread in the note/reminder when feasible.
+- Shortcuts must be authenticated, device-enrolled and idempotent to prevent duplicate entries.
+- If no enrolled device is available, the backend can queue the command, but it cannot create a native Apple Note or Reminder until an Apple device is available to execute the Shortcut.
+
+## 9. AI-assigned tasks and task updates
+
+The AI Assistant must support delegated multi-step tasks, separate from email follow-up records.
+
+- Users can assign a task in natural language.
+- The AI creates a task record with a clear title, scope, relevant email/thread references, status and progress.
+- The task list must support queued, in progress, waiting for user, completed and failed states.
+- The user can ask for updates on one task or all active tasks.
+- Task updates must explain completed steps, remaining work, blockers and any required user decision.
+- The assistant must not claim background progress if no worker execution is actually running.
+- Email sending, deleting, blocking, or other consequential actions remain approval-gated as specified elsewhere.
+
