@@ -415,3 +415,26 @@ Colour is supplementary to the written priority label; never communicate priorit
 ## 25. Recurring tasks — excluded from initial UI
 
 Do not show recurring-task creation controls, repeat selectors, or recurrence settings in the initial version. Keep the task UI focused on individual tasks, one-time scheduled starts, and deadlines.
+
+
+## 26. ChatGPT plan connection, zero-cost controls and privacy — approved direction
+
+### AI connection and usage
+- Accounts & Settings displays a **Sign in with ChatGPT** connection state where the official integration is eligible.
+- Clearly distinguish identity sign-in from permission to use included ChatGPT plan usage; the user must explicitly authorise plan usage.
+- Show whether ChatGPT plan usage is enabled and provide a **Manage usage** link to ChatGPT settings.
+- Show the currently connected account and whether AI requests are using the ChatGPT plan.
+- Do not show or request an OpenAI API key. Do not offer paid API billing as an automatic fallback.
+- When usage is unavailable or exhausted, display that AI work is paused and can resume when included usage is available. Do not silently switch to another paid model/provider.
+- The AI Assistant should have a natural, multi-turn conversational interface with application-managed conversation history. Explain that it is separate from the user's normal ChatGPT history and memories.
+
+### Cost controls
+- Additional AI/API spend target: ₹0. No API charges, credit purchases, automatic purchases, paid upgrades or paid model fallbacks.
+- Target infrastructure/hosting spend: ₹0. Any free-tier limits that may pause or delay cloud processing must be disclosed.
+- No paid deployment or subscription may be activated without explicit user approval.
+
+### Privacy and security UI
+- Show explicit consent controls for background AI email review and other authorised background processing.
+- Provide a clear way to disable background AI processing and disconnect/revoke the ChatGPT connection.
+- Keep the deployed dashboard private and single-user. Public source code does not make the dashboard, mailbox data, attachments, drafts, conversations, credentials or database public.
+- Show a clear privacy/security status for connected accounts and service authorisations. Never display raw tokens or passwords.
