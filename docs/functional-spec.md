@@ -268,3 +268,21 @@ Queued tasks are selected in priority order: Urgent, High, Normal, Low. Within t
 - Respect provider/API rate limits and use bounded retries/backoff. Do not exceed the three-task limit to speed up work.
 - The backend must enforce a configurable concurrency limit, with **3** as the approved initial setting.
 - No proactive notifications when task priority or queue state changes.
+
+
+## 24. AI task scheduling, priority queue and limited parallel execution — approved
+
+- The delegated AI task system uses **limited parallel execution**, with a maximum of **three independent tasks actively executing at the same time** across the user's workspace.
+- The concurrency limit is enforced server-side by the durable worker/queue, not by the browser. Closing the dashboard or switching devices does not change the limit or pause running jobs.
+- Tasks that have no dependency on one another may run concurrently, up to the three-task limit.
+- Tasks with dependencies must wait until their prerequisite steps/tasks have completed successfully. A dependent task must not start early simply because a worker slot is available.
+- Tasks waiting for user input, account reconnection, or approval are put in **Waiting for User** and release their execution slot so unrelated tasks can continue.
+- Failed, cancelled, or completed jobs release their execution slot.
+- Queued tasks are selected by priority first, then by their queue age (FIFO within the same priority), subject to dependencies and available worker capacity.
+- Every task has a priority field. The default is **Normal** unless the user or an authorised AI task-planning rule assigns a different priority. The user can change task priority at any time.
+- A priority change affects the order of queued tasks. It does not interrupt or terminate an already-running task.
+- The initial scheduler must not silently pre-empt an in-progress task. If all three slots are occupied, higher-priority tasks wait for the next available slot.
+- The concurrency limit must be configurable by the operator for capacity/cost management, but the user's approved initial setting is three.
+- Each active task/step must use durable checkpoints, idempotency keys, bounded retries and worker leases/heartbeats. A worker restart must not create duplicate work or side effects.
+- The dashboard must show queued/running task counts and which tasks are occupying the three active slots. It must not display fabricated percentage progress.
+- No proactive notifications are sent when tasks start, finish, fail, or wait for input.
