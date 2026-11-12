@@ -314,8 +314,10 @@ This is a required two-way read-state behaviour.
 - Draft preparation must never send an email, create an externally visible provider draft, or contact any recipient automatically unless the user explicitly chooses a separately described save-to-provider-drafts action.
 - Sending requires explicit approval of both the final content and recipient list.
 - A draft should remain attached to its source email/thread and be updated or versioned when the user asks ChatGPT to revise it.
-- If the email is automated, no-reply, promotional, spam, or clearly requires no response, the AI should still process the email but should label the draft as "No reply recommended" and explain why instead of fabricating an inappropriate response. The user may override this and ask for a reply.
-- For every other incoming email, prepare a useful, context-aware draft. If essential information is missing, use a cautious draft with clear placeholders or ask the user a question in the reply workspace; do not invent facts or commitments.
+- Generate a draft record for every incoming email in the synchronised review scope, including routine, automated, promotional, and no-reply messages. Do not silently skip an incoming message.
+- When replying would be inappropriate (for example, a mailing list, automated sender, or address that does not accept replies), still create a draft state that clearly says "Reply not recommended", explains why, and does not fabricate a suitable recipient or encourage sending. The user can explicitly override this assessment.
+- For messages where a reply is appropriate, prepare a useful, context-aware reply draft. If essential information is missing, use cautious wording with clear placeholders or ask the user a question in the reply workspace; do not invent facts or commitments.
+- Spam or messages excluded by the user's explicit account/folder sync settings may be excluded from automatic draft generation; exclusions must be configurable and visible.
 - On later incoming messages in the same conversation, prepare a draft for the new message and preserve any earlier user-edited drafts rather than overwriting them.
 - Draft creation must be idempotent: repeated syncs must not create duplicate draft records for the same incoming message and drafting version.
 - Keep provider-specific draft saving separate from the internal AI draft. The AI draft is internal until the user explicitly chooses to save it to iCloud/Gmail Drafts or send it after approval.
