@@ -313,3 +313,13 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - If the user explicitly names a connected account in their instruction, show that account as selected.
 - Otherwise, ask the user to choose from their connected iCloud/Gmail accounts before sending.
 - Replies and forwards default to the source email account, with an editable account choice.
+
+
+## 18. From dropdown and reply account display — approved
+
+- The new-email composer must contain a visible **From** dropdown listing the connected and authorised iCloud/Gmail sending addresses. No account is preselected by default.
+- The user selects the From account for each new outbound email, unless the account was explicitly named in their command.
+- In the reply workspace, display the original receiving email address in the **From** field. This field is read-only/locked: replies and Reply All must use the exact account that received the selected original email.
+- If that receiving account is disconnected or cannot send, show a reconnect/error state. Never silently send the reply from another account.
+- For a forwarded email, show the original receiving account as the default From account. An explicit alternative can be chosen in the forward composer.
+- If a visually grouped duplicate exists across accounts, actions are scoped to the exact selected source copy. The source account determines the reply From address.
