@@ -307,3 +307,24 @@ Default new tasks to `normal`.
 - If capacity is unavailable at the scheduled time, retain the task in the durable queue; start it when a slot becomes available according to queue ordering.
 - Scheduled-start permission is distinct from approval for consequential actions. Existing action-level approval gates remain in force.
 - Record the scheduled time and actual start time for auditability. No notifications are emitted.
+
+
+## 14. Automatic deadline-based priority escalation — approved
+
+### Data and calculation
+- Store the task's underlying `base_priority` separately from its calculated `effective_priority`.
+- Store whether a user has explicitly overridden priority (for example, `priority_override_by_user`) and preserve the existing priority source/reason metadata.
+- When the user has not manually overridden priority:
+  - More than 72 hours remaining: use the base priority.
+  - 72 hours or less remaining: effective priority is at least `high`.
+  - 24 hours or less remaining: effective priority is `urgent`.
+  - At or past the deadline: remain `urgent` until completion/cancellation or deadline change.
+- Recalculate when the deadline changes and as time passes. If a deadline is extended, remove stale deadline escalation and recompute from the base priority and new remaining time.
+- A user-set priority always wins. An explicit user command to restore Automatic clears the manual override and resumes deadline-based calculation.
+- Do not infer or fabricate a deadline when none is supported by the task or user instruction.
+
+### Scheduler integration
+- Queue ordering uses `effective_priority`, followed by FIFO within the same priority.
+- Deadline escalation does not pre-empt running tasks and does not override dependency, scheduled-start, concurrency, or consequential-action approval constraints.
+- Calculate using timezone-aware timestamps; store consistently and display/interpret in the user's configured timezone (default Asia/Kolkata).
+- Persist the reason for an escalated effective priority for audit and UI explanation.
