@@ -291,3 +291,31 @@ This is a required two-way read-state behaviour.
 - If an identifier is missing or the evidence is ambiguous, keep the messages as separate Inbox entries. Do not automatically merge uncertain matches.
 - Preserve the full independent account copies even when a high-confidence visual grouping is made.
 - Allow a user to manually group or ungroup entries only through an explicit action, and retain an audit event for that change.
+
+
+## 16. Automatic AI priority detection — approved behaviour
+
+- During processing of each new email, the AI must assess whether it deserves priority.
+- Priority signals may include explicit urgency, time-sensitive deadlines, payment or financial exposure, legal or contractual implications, operational disruption, important customer/supplier commitments, security issues, and messages requiring a timely decision or response.
+- The AI should not mark routine newsletters, promotions, automated receipts, or informational messages as priority unless the actual content contains a significant actionable issue.
+- When marking an email as priority, store a concise reason that can be shown in the dashboard (for example: "Payment deadline tomorrow" or "Supplier needs approval to proceed").
+- Distinguish AI-assigned priority from user-assigned priority in the data model and interface.
+- Users can manually mark an email as priority or remove its priority.
+- A manual user choice takes precedence over future automatic AI reassessment for that message until the user resets the priority.
+
+## 17. Automatic reply draft for every incoming email — approved behaviour
+
+- When a new incoming email is synchronised, ChatGPT must automatically prepare a reply draft for that email, not only when the user clicks Create Reply.
+- The draft must be saved in the Email Assistant database and associated with the exact source message, email account and conversation/thread.
+- The dashboard must make the prepared draft available from the relevant email card/detail view through the Create Reply action.
+- The user can open the draft in the interactive ChatGPT-style reply workspace, request changes from ChatGPT, edit the text directly, change recipients, or discard the draft.
+- Reply All is the default recipient mode, but the user can switch to replying to one person and edit To, CC and BCC.
+- Draft preparation does not mark the original email as read.
+- Draft preparation must never send an email, create an externally visible provider draft, or contact any recipient automatically unless the user explicitly chooses a separately described save-to-provider-drafts action.
+- Sending requires explicit approval of both the final content and recipient list.
+- A draft should remain attached to its source email/thread and be updated or versioned when the user asks ChatGPT to revise it.
+- If the email is automated, no-reply, promotional, spam, or clearly requires no response, the AI should still process the email but should label the draft as "No reply recommended" and explain why instead of fabricating an inappropriate response. The user may override this and ask for a reply.
+- For every other incoming email, prepare a useful, context-aware draft. If essential information is missing, use a cautious draft with clear placeholders or ask the user a question in the reply workspace; do not invent facts or commitments.
+- On later incoming messages in the same conversation, prepare a draft for the new message and preserve any earlier user-edited drafts rather than overwriting them.
+- Draft creation must be idempotent: repeated syncs must not create duplicate draft records for the same incoming message and drafting version.
+- Keep provider-specific draft saving separate from the internal AI draft. The AI draft is internal until the user explicitly chooses to save it to iCloud/Gmail Drafts or send it after approval.
