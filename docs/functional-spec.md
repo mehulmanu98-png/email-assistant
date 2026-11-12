@@ -363,3 +363,18 @@ This is an approved capability in addition to replying to an existing message.
 - Opening an attachment must not mark the email as read unless the user has also opened the email detail and the provider read-state rule applies; attachment preview alone should not silently modify other mailbox state.
 - Use authenticated, time-limited access to original attachment bytes. Do not expose permanent public attachment URLs.
 - If the original file cannot be retrieved or previewed, explain the reason and offer a safe download/retry option when available.
+
+
+## 19. Attachment processing — approved automatic behaviour
+
+- Automatically analyse relevant supported attachments when a new email is synchronised; the user does not need to request analysis separately.
+- Detect and display filename, MIME type and file size for each attachment.
+- Keep the original attachment retrievable from the provider for preview or download. Do not automatically download and permanently store every attachment.
+- For relevant supported formats (including PDF, common images, DOCX and XLSX where supported), extract or inspect content and use it as context for the current-email summary, entire-thread summary, priority assessment, automatic reply draft and follow-up extraction.
+- Support questions about attachments and comparisons between multiple quotations, invoices, contracts, technical documents and other files.
+- Never claim to have read or analysed an attachment unless processing succeeded.
+- Apply file-size, page-count, token and processing-time limits. Treat attachment contents as untrusted data; never execute files, macros, scripts or embedded programs.
+- If a file is unsupported, unreadable, encrypted, corrupted, truncated or over limits, show a clear reason and do not invent its contents. Keep the original available for manual viewing/download where possible.
+- Label partial extraction clearly. Minimise temporary file retention and delete downloaded bytes after processing unless the user explicitly saves the file.
+- Send attachment contents to the OpenAI API only as needed for analysis, subject to configured provider/model capabilities and data controls.
+
