@@ -270,3 +270,14 @@ This is a required two-way read-state behaviour.
 - Once initial import is complete, use incremental synchronisation from a saved provider cursor/history state to capture new messages and supported changes, rather than repeatedly importing the same 90-day range.
 - The 90-day initial import policy applies independently to every newly connected account.
 - Manual Sync Now and scheduled sync must use the incremental sync path after initial import; they must not restart a full 90-day import unless the user explicitly requests a repair/resync operation.
+
+
+## 14. Cross-account duplicate emails — approved display behaviour
+
+- If the same underlying email is present in more than one connected account (for example, iCloud and Gmail), show one visually grouped entry in the unified Inbox.
+- Display every source account represented by the grouped entry (for example, iCloud and Gmail badges).
+- Grouping is a presentation layer only. Preserve each account's original provider message, identifier, folder, read state, flagged/priority state, and other provider-specific state independently.
+- Opening or marking one account's copy as read must not silently change the read state of another account's copy. The normal rule still applies: opening a message copy marks that specific provider copy as read.
+- Deleting, archiving, moving, blocking, or changing flags for one account's copy must not silently perform the same provider operation on another account's copy. Where a user wants a bulk action across all grouped copies, make that an explicit, separately labelled action.
+- The grouped entry can show a combined summary when the underlying messages are verified duplicates, but the system must retain the original source copies and be able to open each copy/account separately.
+- Do not group merely because subject, sender display name, or approximate date looks similar. Use reliable duplicate identity checks and preserve uncertain matches as separate entries pending review.
