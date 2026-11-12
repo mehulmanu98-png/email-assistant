@@ -378,3 +378,17 @@ This is an approved capability in addition to replying to an existing message.
 - Label partial extraction clearly. Minimise temporary file retention and delete downloaded bytes after processing unless the user explicitly saves the file.
 - Send attachment contents to the OpenAI API only as needed for analysis, subject to configured provider/model capabilities and data controls.
 
+
+
+## 21. Reply draft storage — approved Option A (internal Email Assistant drafts)
+
+- The canonical AI-generated reply draft is stored in the Email Assistant's own PostgreSQL database.
+- Automatically generated drafts must not be written to the actual Gmail Drafts or iCloud Drafts folders.
+- Each draft is associated with its source incoming message, provider account, conversation/thread, recipient set, subject, body, creation/update timestamps and draft version.
+- Drafts are accessible from the originating email's **Create Reply** workspace and can be listed/managed within the Email Assistant.
+- The user can continue chatting with ChatGPT to revise the draft, make direct manual edits, change recipients, save changes, discard it, or approve sending.
+- Internal draft autosave must not create an email in a provider Drafts folder.
+- Sending an approved internal draft sends through the selected source account/provider and records the actual provider response and resulting message identifier.
+- If the user explicitly chooses **Save to Email Drafts**, the application may copy/synchronise the current draft into the relevant provider's Gmail or iCloud Drafts folder. This is a separate, explicit action and must clearly identify the destination account.
+- Editing an internal draft after it has been copied to a provider Drafts folder must not silently overwrite the provider draft unless the user has opted into that sync behaviour; show the two draft states and offer an explicit update action.
+- Do not create duplicate internal drafts on repeated synchronisation. Preserve user edits and maintain version history when AI revisions are requested.
