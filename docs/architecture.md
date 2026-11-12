@@ -328,3 +328,31 @@ Default new tasks to `normal`.
 - Deadline escalation does not pre-empt running tasks and does not override dependency, scheduled-start, concurrency, or consequential-action approval constraints.
 - Calculate using timezone-aware timestamps; store consistently and display/interpret in the user's configured timezone (default Asia/Kolkata).
 - Persist the reason for an escalated effective priority for audit and UI explanation.
+
+
+## 15. Hard and target deadline model — approved
+
+### Data model
+- Add `deadline_type` enum: `hard` or `target`.
+- Store `deadline_type_source` (for example `user`, `ai_classified`, `default`) and a concise `deadline_type_reason`.
+- Store a supporting source/message reference when classification comes from an email or document.
+- Default to `target` unless a user instruction or reliable source establishes a mandatory external obligation.
+- Do not silently infer Hard from generic wording. Ask when the distinction materially affects handling and remains ambiguous.
+- Allow the user to edit deadline date/time and type.
+
+### Type-specific effective priority calculation
+Apply only when the user has not manually overridden priority. Combine the escalation floor below with `base_priority`; never lower an existing base priority.
+
+**Hard**
+- More than 72 hours remaining: base priority.
+- At 72 hours or less: at least `high`.
+- At 24 hours or less: `urgent`.
+- At or past deadline: remain `urgent` until completion/cancellation or deadline change.
+
+**Target**
+- More than 24 hours remaining: base priority.
+- At 24 hours or less: at least `high`.
+- At or past target time: remain at least `high` until completion/cancellation or target change.
+- A target deadline alone cannot produce `urgent`.
+
+Recalculate when time crosses a threshold and whenever the deadline, deadline type, or base priority changes. A user-set priority remains authoritative until reset to Automatic. Existing task eligibility, dependency, scheduled-start, concurrency, FIFO and consequential-action approval constraints remain unchanged.
