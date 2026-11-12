@@ -356,3 +356,8 @@ Apply only when the user has not manually overridden priority. Combine the escal
 - A target deadline alone cannot produce `urgent`.
 
 Recalculate when time crosses a threshold and whenever the deadline, deadline type, or base priority changes. A user-set priority remains authoritative until reset to Automatic. Existing task eligibility, dependency, scheduled-start, concurrency, FIFO and consequential-action approval constraints remain unchanged.
+
+
+## 16. Recurring task scheduling — excluded from initial scope
+
+Do not implement recurrence rules, recurring-task scheduler triggers, or automatic generation of repeated task instances in the initial release. One-time scheduled starts and deadlines remain supported. Revisit only after an explicit future product decision.
