@@ -294,3 +294,13 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - If a format cannot be previewed, clearly state this and provide a download/open-original action.
 - Always distinguish the original attachment from AI-extracted text and summaries. Never replace the original with a transformed version.
 - Provide an obvious way to return to the email detail panel.
+
+
+## 16. Reply draft UI — approved internal storage
+
+- The default **Create Reply** workspace edits an internal Email Assistant draft.
+- Autosave changes to the application database; do not automatically create a Gmail or iCloud provider draft.
+- Show an obvious saved/saving state in the reply workspace.
+- Provide controls for Edit, Ask ChatGPT to revise, Save, Discard, and Approve & Send.
+- Provide **Save to Email Drafts** only as a separate optional action, with the destination account displayed.
+- The draft remains accessible from its source email and conversation.
