@@ -260,3 +260,16 @@ Keep Accounts & Settings as one clean page with four grouped sections. Avoid dee
 4. Security & Privacy
 
 Use inline rows/cards with subtle separators, clear connection states, and concise action controls.
+
+
+## 13. Inbox Sync Now control — approved addition
+
+- Display a clearly visible **Sync Now** button in the Inbox header.
+- The default action synchronises all connected email accounts.
+- Provide an account selector or adjacent menu to synchronise one selected account only.
+- While running, show a clear syncing state and prevent accidental duplicate sync submissions.
+- On completion, show the result in the dashboard: accounts checked, new messages found, updates processed, and any account-specific errors.
+- Show the last successful sync time for each account.
+- Manual sync must trigger the same safe, idempotent processing pipeline as scheduled reviews.
+- Syncing must not send notifications.
+- Accounts & Settings must also retain a per-account Sync Now action.
