@@ -344,3 +344,34 @@ For tasks whose priority has not been manually set by the user, the system autom
 - The scheduler uses the effective priority when ordering eligible queued tasks. Running tasks are not pre-empted.
 - Show the deadline, remaining time, effective priority and a clear reason such as "Raised to High — deadline within 72 hours" in task details.
 - Use the user's configured timezone for deadline display and interpretation; default timezone is Asia/Kolkata (IST).
+
+
+## 28. Hard deadlines and target deadlines — approved
+
+Every task deadline must have a type:
+
+- **Hard deadline** — a mandatory completion time, such as a legal/statutory filing date, contractual obligation, regulatory deadline, or another date the user explicitly says must be met.
+- **Target deadline** — a preferred completion time or internal goal. Missing it is undesirable, but it is not automatically a breach of an external obligation.
+
+### Default and classification
+- If the user does not specify the type and the available information does not establish a mandatory deadline, default to **Target deadline**.
+- Classify a deadline as Hard only when the user explicitly says it is mandatory/strict or the source clearly establishes a fixed external obligation. Store a short reason and the supporting source reference when available.
+- If the consequence or type is materially ambiguous, ask the user rather than silently treating a preferred date as a mandatory obligation.
+- The user can change a task's deadline type at any time.
+
+### Type-specific automatic priority escalation
+The user's manual priority override continues to take precedence over all automatic escalation.
+
+**Hard deadline**
+- More than 72 hours remaining: retain the task's base priority.
+- 72 hours or less remaining: raise effective priority to at least **High**.
+- 24 hours or less remaining: raise effective priority to **Urgent**.
+- At or past the deadline: remain **Urgent** until completed/cancelled or the deadline is changed.
+
+**Target deadline**
+- More than 24 hours remaining: retain the task's base priority.
+- 24 hours or less remaining: raise effective priority to at least **High**.
+- At or past the target time: remain at least **High** until completed/cancelled or the target is changed.
+- A Target deadline alone must never raise a task to Urgent. Urgent may still apply because of its base priority, a manual user assignment, or a separately supported urgent business risk.
+
+When a deadline is changed or its type is changed, recalculate effective priority from the base priority and the applicable rules. Do not retain stale escalation. Deadline type does not bypass scheduled-start times, dependencies, the three-task concurrency limit, or approval gates for consequential actions.
