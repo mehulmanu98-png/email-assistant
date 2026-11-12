@@ -69,7 +69,7 @@ flowchart TB
 - React + TypeScript responsive web interface.
 - Four main areas: Inbox, Follow-ups, AI Assistant, Accounts & Settings.
 - Three-column desktop Inbox; responsive email list/detail flow on mobile.
-- All sensitive actions call authenticated backend APIs. The frontend never receives provider passwords, refresh tokens, or OpenAI secrets.
+- All sensitive actions call authenticated backend APIs. The frontend never receives provider passwords, refresh tokens, or SIWC authentication tokens.
 
 ### API/backend
 - Python + FastAPI.
@@ -92,7 +92,7 @@ Core entities/tables:
 - sync_cursors, sync_runs, audit_events
 - account_review_schedules, user_preferences
 
-Do not store raw provider credentials or OpenAI API keys in ordinary database rows. Use encrypted secret storage or a managed secret manager and store only secret references in the database.
+Do not store raw mail-provider credentials or tokens in ordinary database rows. Use encrypted secret storage or a managed secret manager for mail-provider credentials. SIWC authentication tokens are handled separately and must follow the stricter SIWC storage requirements; do not place them in PostgreSQL, a managed secret manager or other remote managed storage unless current OpenAI terms explicitly permit the exact self-hosted setup.
 
 ### Durable job queue and background worker
 - Use a durable queue backed by PostgreSQL or a managed queue service.
@@ -159,10 +159,11 @@ flowchart TD
 
 ## 6. Persistent AI conversations and automatic email trail updates
 
-- Application-managed AI conversations use supported OpenAI conversation-state APIs.
-- Database maps provider + account + thread identity to the relevant OpenAI Conversation ID.
-- On every new message in a linked thread, a worker verifies identity, prevents duplicates, appends the new email context once and triggers summary/task reassessment.
-- AI conversations in this application are not represented as arbitrary native ChatGPT history conversations. Native ChatGPT history modification must not be claimed without a supported product integration.
+- Email Assistant conversations and their history are stored in the application's own PostgreSQL database.
+- Database maps provider + account + thread identity to an application-managed conversation ID.
+- On every new message in a linked thread, the worker verifies identity, prevents duplicates, appends the new email context once, and triggers summary/task reassessment.
+- When a model response is required, send only the necessary retained context through the authorised SIWC request. Do not rely on paid OpenAI Conversation APIs or a native ChatGPT Conversation ID.
+- These application conversations are not native ChatGPT history conversations and do not provide access to ChatGPT memories.
 
 ## 7. Delegated AI task execution
 
