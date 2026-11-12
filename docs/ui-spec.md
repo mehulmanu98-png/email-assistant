@@ -283,3 +283,14 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - Older messages are not bulk-imported during initial setup. When the user searches for or opens an older message/thread, the application may retrieve the required older data on demand from the relevant provider, subject to provider search/history access.
 - After the initial import, normal incremental synchronisation continues from the saved sync cursor/history and includes new messages and supported mailbox state changes.
 - The 90-day initial import preference applies independently to each newly connected email account.
+
+
+## 15. Original attachment viewing — approved requirement
+
+- Show every attachment in a compact list within the selected email detail panel.
+- Each attachment row displays its filename, file type, size and analysis status.
+- Provide an explicit **View Original Attachment** button for each attachment, in addition to Download.
+- PDFs open in an in-app viewer with page navigation and zoom; images open in an image viewer; supported Office documents use an original-file preview when available.
+- If a format cannot be previewed, clearly state this and provide a download/open-original action.
+- Always distinguish the original attachment from AI-extracted text and summaries. Never replace the original with a transformed version.
+- Provide an obvious way to return to the email detail panel.
