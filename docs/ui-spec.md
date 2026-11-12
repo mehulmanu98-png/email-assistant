@@ -371,3 +371,16 @@ Colour is supplementary to the written priority label; never communicate priorit
 - Distinguish user-set priority from AI-recommended priority where useful.
 - The task panel should show active slot usage (maximum 3), queued tasks and their priority-aware ordering.
 - Priority changes reorder queued tasks only. Never imply that an already-running task was interrupted.
+
+
+## 22. Scheduled task start display — approved
+
+- Allow a task to show an optional scheduled start date and time.
+- Display the scheduled start time and a clear waiting state:
+  - Waiting for scheduled time
+  - Waiting for dependency
+  - Queued for an available execution slot
+  - In Progress
+- At the scheduled time, the task starts automatically when dependencies are satisfied and one of the three execution slots is available. Do not prompt for a second approval just to start it.
+- Retain existing approval steps for consequential actions such as sending emails unless the user explicitly authorised that specific action.
+- Do not send notifications when the scheduled time arrives or when execution begins.
