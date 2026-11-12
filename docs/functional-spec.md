@@ -257,3 +257,16 @@ This is a required two-way read-state behaviour.
 - Provider state is authoritative when reconciling external changes. Record the latest confirmed provider read state and sync timestamp.
 - Apply the provider-specific API/protocol for the source account (Gmail API for Gmail; iCloud-supported mailbox protocol for iCloud).
 - Read-state updates must not send notifications.
+
+
+## 13. Initial history import and ongoing synchronisation window
+
+- The approved initial import window for every newly connected iCloud or Gmail account is the most recent **90 days**.
+- The backend must calculate the initial start date separately for each account using the account's connection time and local time zone settings.
+- The import must be paginated/batched, resumable after interruption, idempotent, and safe to retry without duplicating messages, thread items, AI conversation items, summaries, or follow-ups.
+- Record per-account initial import progress, start/completion timestamps, imported message counts, and errors.
+- Do not bulk-import the account's entire older mailbox during initial setup.
+- Older email remains in the original provider mailbox. When the user searches for or opens an older conversation, the application may fetch the matching messages on demand from the provider, subject to provider permissions, search capabilities, and rate limits. Make clear when the full older trail could not be retrieved.
+- Once initial import is complete, use incremental synchronisation from a saved provider cursor/history state to capture new messages and supported changes, rather than repeatedly importing the same 90-day range.
+- The 90-day initial import policy applies independently to every newly connected account.
+- Manual Sync Now and scheduled sync must use the incremental sync path after initial import; they must not restart a full 90-day import unless the user explicitly requests a repair/resync operation.
