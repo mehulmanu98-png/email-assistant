@@ -281,3 +281,13 @@ This is a required two-way read-state behaviour.
 - Deleting, archiving, moving, blocking, or changing flags for one account's copy must not silently perform the same provider operation on another account's copy. Where a user wants a bulk action across all grouped copies, make that an explicit, separately labelled action.
 - The grouped entry can show a combined summary when the underlying messages are verified duplicates, but the system must retain the original source copies and be able to open each copy/account separately.
 - Do not group merely because subject, sender display name, or approximate date looks similar. Use reliable duplicate identity checks and preserve uncertain matches as separate entries pending review.
+
+
+## 15. Duplicate detection confidence — approved strict matching rule
+
+- Prefer exact provider/account message identifiers and the original RFC Message-ID when available.
+- For cross-account matching, require a reliable identity match and corroborating evidence (such as sender, subject, sent/received time and normalised content or MIME-part fingerprints).
+- Do not rely on subject, sender display name, or approximate timestamp alone.
+- If an identifier is missing or the evidence is ambiguous, keep the messages as separate Inbox entries. Do not automatically merge uncertain matches.
+- Preserve the full independent account copies even when a high-confidence visual grouping is made.
+- Allow a user to manually group or ungroup entries only through an explicit action, and retain an audit event for that change.
