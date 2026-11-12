@@ -410,3 +410,8 @@ Colour is supplementary to the written priority label; never communicate priorit
 - Target deadline escalation: High within 24 hours and while overdue; never Urgent solely because the target time has passed.
 - Preserve the written priority label and existing colour mapping: Urgent red, High amber, Normal blue, Low green.
 - Explain whether the deadline type was set by the user, defaulted, or AI-classified. Allow the user to correct it.
+
+
+## 25. Recurring tasks — excluded from initial UI
+
+Do not show recurring-task creation controls, repeat selectors, or recurrence settings in the initial version. Keep the task UI focused on individual tasks, one-time scheduled starts, and deadlines.
