@@ -361,3 +361,37 @@ Recalculate when time crosses a threshold and whenever the deadline, deadline ty
 ## 16. Recurring task scheduling — excluded from initial scope
 
 Do not implement recurrence rules, recurring-task scheduler triggers, or automatic generation of repeated task instances in the initial release. One-time scheduled starts and deadlines remain supported. Revisit only after an explicit future product decision.
+
+
+## 17. AI integration, zero-cost operation and open-source release — approved direction
+
+### AI provider path
+- Preferred path: supported OpenAI Sign in with ChatGPT / ChatGPT plan usage integration for an open-source personal application, implemented only with the current official SIWC SDK and documentation.
+- Verify the user's ChatGPT Go account eligibility and whether the exact deployment model is supported. Open-source status alone must not be treated as proof that a remotely hosted deployment is eligible.
+- The app's own conversations and context live in its own database. SIWC plan usage does not provide access to native ChatGPT conversations or memories.
+- Select only models exposed through the authorised SIWC integration. Do not promise parity with every model or ChatGPT product feature.
+- No OpenAI API key or API-billed inference path is to be configured.
+
+### SIWC credentials and background execution
+- Use the official OAuth flow only. Never collect ChatGPT passwords or cookies.
+- Do not put SIWC authentication tokens in PostgreSQL, a managed cloud secret manager, source control, logs, or environment files in the public repository.
+- The current SIWC terms restrict persistent token storage to local storage under the user's control. OpenAI documents a separate self-hosted VM procedure; validate the exact VM ownership, credential location, transfer process, revocation/usage attribution limitations and current terms before using it.
+- Because background mail analysis and delegated tasks must originate from the user's own expressly authorised activity, obtain an explicit user consent during setup for each enabled category of background AI processing and make the control revocable.
+- If the intended cloud runtime cannot be shown to meet current SIWC requirements, do not send inference requests from it. Surface the blocker and seek an eligible route or a revised architecture; do not work around terms.
+
+### Cost controls
+- Additional AI/API spend is fixed at **₹0** by default. No API billing, credit use, automatic credit purchase, paid fallback model or paid upgrade.
+- When ChatGPT included usage is unavailable or exhausted, pause AI inference and keep tasks in a resumable queued/waiting state. Do not switch providers or charge the user.
+- Target infrastructure and hosting spend is **₹0**. Provision free tiers only after verifying quotas, worker uptime, sleep behaviour, backup/security features and retention.
+- A free tier that sleeps or cannot guarantee background workers must not be presented as 24/7 cloud processing. If a required capability cannot be achieved for ₹0, report the limitation and request explicit approval before changing the target or provisioning anything paid.
+
+### Public source / private deployment
+- User approved a public open-source source repository, subject to security and licence review before changing repository visibility.
+- Keep the running service single-user, private and authenticated. Public source code must not include user-specific deployment configuration, mailbox data, attachments, email/draft content, account IDs, database exports, logs, OAuth tokens, app-specific passwords, API keys or other secrets.
+- Before public release, scan the complete Git history and repository contents, remove/rewrite any exposed secret history where required, rotate exposed credentials, select a compatible open-source licence, and audit third-party/SIWC dependencies.
+- Keep deployment configuration, database, backups and private runtime data under private access controls.
+
+### Security baseline
+- Enforce HTTPS, strong authentication, least-privilege authorisation, secure session management, CSRF protection for browser state changes, encryption at rest/in transit, restricted database access, audit logs, secure provider credential storage, attachment isolation and safe untrusted-email rendering.
+- Keep SIWC credentials separate from normal mail provider secrets and follow SIWC's more restrictive storage rules.
+- Provide user-visible connection status, usage limits, background-consent status and revocation/disconnection controls.
