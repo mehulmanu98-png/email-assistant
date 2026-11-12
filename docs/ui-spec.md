@@ -350,6 +350,16 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 
 ## 21. AI task priority display and controls — approved
 
+### Priority colour mapping
+Use these restrained semantic label colours consistently in the AI task list and task details:
+- **Urgent** — red
+- **High** — amber/orange
+- **Normal** — blue
+- **Low** — green
+
+Colour is supplementary to the written priority label; never communicate priority by colour alone.
+
+
 - Every AI-assigned task row displays one priority label: Urgent, High, Normal or Low.
 - New tasks default to Normal unless an explicit user priority or justified AI recommendation is present.
 - Provide a task detail control to change priority.
