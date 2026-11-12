@@ -384,3 +384,17 @@ Colour is supplementary to the written priority label; never communicate priorit
 - At the scheduled time, the task starts automatically when dependencies are satisfied and one of the three execution slots is available. Do not prompt for a second approval just to start it.
 - Retain existing approval steps for consequential actions such as sending emails unless the user explicitly authorised that specific action.
 - Do not send notifications when the scheduled time arrives or when execution begins.
+
+
+## 23. Deadline-based priority display — approved
+
+- Show the task deadline and remaining time in the task row/detail when known.
+- For automatically managed priorities, show the effective priority and why it changed:
+  - Within 72 hours: at least High.
+  - Within 24 hours: Urgent.
+  - At or past deadline: remains Urgent until completed/cancelled or deadline changed.
+- A user-set priority is a manual override and must never be changed by deadline escalation.
+- Provide a way to restore Automatic priority management.
+- When a deadline is extended, refresh the effective priority and its explanation; do not display an obsolete escalation.
+- Use IST by default (or the user's configured timezone) for deadline entry and display.
+- Colour mapping remains: Urgent red, High amber, Normal blue, Low green. Always display the written label too.
