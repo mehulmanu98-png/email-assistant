@@ -336,3 +336,13 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - Do not show fabricated percentage progress. Progress must reflect actual completed steps or checkpoints.
 - No proactive notifications. New progress is visible when the dashboard is opened or refreshed.
 - Closing the browser or switching devices must not cancel an accepted task.
+
+
+## 20. AI task queue and concurrency display — approved
+
+- The compact task panel may show a small queue summary: active tasks (for example, 2 of 3) and queued tasks.
+- Each task row shows its priority, current status, last update time and next action.
+- Queued tasks show that they are waiting for an execution slot or prerequisite.
+- Waiting for User tasks are clearly distinguished and do not count as occupying an active execution slot.
+- The UI must not promise that a queued task has started until a worker claims it.
+- No notifications are sent when tasks start or finish.
