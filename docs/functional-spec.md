@@ -180,3 +180,44 @@ The AI Assistant must support delegated multi-step tasks, separate from email fo
 - The assistant must not claim background progress if no worker execution is actually running.
 - Email sending, deleting, blocking, or other consequential actions remain approval-gated as specified elsewhere.
 
+
+
+## 10. Automatic updates to the linked AI conversation when new email arrives
+
+This is a required behaviour.
+
+### Linking model
+
+- A user can link an email thread to a selected, persistent AI Assistant conversation.
+- The dashboard stores the relationship between the email provider/account + thread identity and the OpenAI API Conversation ID.
+- A thread may have one designated AI conversation by default. The user can change the linked conversation or unlink it.
+- The interface must clearly show which AI conversation is linked to a given email thread.
+
+### Incoming email event
+
+When a new message arrives in a linked email thread:
+
+1. The cloud email synchronisation worker detects the new message.
+2. It verifies the provider/account and thread relationship to avoid attaching unrelated messages.
+3. It checks message identifiers and processing state to prevent duplicates.
+4. It appends the new email as a clearly labelled message item to the linked persistent OpenAI API Conversation.
+5. It refreshes the current-email summary and the entire-thread summary independently.
+6. It updates the linked AI conversation with the new context and, where configured, generates a concise update explaining what changed, any new commitments/deadlines, and required next actions.
+7. The Email Assistant dashboard reflects the updated conversation and last-updated timestamp.
+
+### User experience
+
+- The update happens automatically after inbox synchronisation; the user must not need to copy/paste the new email.
+- The linked AI conversation should visibly identify the source email, sender, account, received time and thread reference.
+- The user can ask follow-up questions in that same linked AI conversation and the newly arrived email must be available as context.
+- If the email thread is not linked to an AI conversation, the application must not guess which unrelated chat to update. It can prompt the user to link one or create a new Email Assistant AI conversation.
+- The user can disable automatic AI-conversation updates for a particular thread or account.
+- Automatic updates must not send email, change read status, delete messages, create Apple Notes/Reminders, or perform other consequential actions by themselves.
+
+### Platform boundary
+
+- Use the OpenAI API Conversations/Responses capabilities for durable application-managed AI conversations and conversation items.
+- This provides a persistent AI conversation within the Email Assistant application; it is not the same as appending content to an arbitrary chat in the user's standard ChatGPT chat-history sidebar.
+- Do not claim direct updates to native ChatGPT history unless a supported ChatGPT Apps capability is verified for the user's account and implementation.
+- Store the provider thread identity and OpenAI Conversation ID mapping in the application's own database.
+- Treat the email content as untrusted context and never allow embedded email instructions to override the assistant's application/developer instructions.
