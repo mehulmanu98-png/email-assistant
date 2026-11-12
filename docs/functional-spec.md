@@ -230,3 +230,30 @@ When a new message arrives in a linked email thread:
 - The backend may retain a minimal completion record in the audit/history data for accountability and duplicate prevention.
 - Removing an item from Follow-ups is different from marking it complete: removal stops tracking the email trail and must not delete or alter the underlying email, conversation, or linked AI conversation.
 - The user can use natural-language AI commands to mark a follow-up complete or remove it from tracking.
+
+
+## 12. Sync Now and provider read-state synchronisation
+
+### Manual Sync Now
+
+- The Inbox must expose a clearly visible **Sync Now** button.
+- By default, Sync Now runs synchronisation across all connected iCloud and Gmail accounts.
+- The user can also trigger sync for one selected account.
+- The dashboard must show syncing, completed, or failed state, last successful sync time, newly found messages, and errors per account.
+- Manual sync uses the same idempotent pipeline as scheduled synchronisation and must not create duplicate messages, AI thread items, summaries, or follow-ups.
+- Manual sync does not send notifications.
+- Keep the individual-account Sync Now action in Accounts & Settings as well.
+
+### Reading an email in the portal updates the original provider
+
+This is a required two-way read-state behaviour.
+
+- When the user opens an email in the Email Assistant dashboard to read its detail, the backend must mark that message as read in its source mailbox (iCloud or Gmail).
+- The dashboard should show the read-state update as pending until the provider confirms it, then display the confirmed state.
+- If the provider update fails, show a clear error and allow retry. Do not falsely claim that the provider state changed.
+- Opening an email detail is the read action. Merely showing an email in the list, generating a summary in the background, or automatically analysing a message must not mark it read.
+- If the user marks a message unread in the provider directly, the next synchronisation must reflect that unread state in the dashboard.
+- If the user marks a message read in the provider directly, the next synchronisation must reflect that read state in the dashboard.
+- Provider state is authoritative when reconciling external changes. Record the latest confirmed provider read state and sync timestamp.
+- Apply the provider-specific API/protocol for the source account (Gmail API for Gmail; iCloud-supported mailbox protocol for iCloud).
+- Read-state updates must not send notifications.
