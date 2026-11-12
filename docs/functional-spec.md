@@ -313,3 +313,14 @@ Every delegated AI task must have one of four priority levels:
 - A priority change reorders queued tasks but does not pre-empt an already running task.
 - Waiting for User, Completed, Failed and Cancelled tasks do not occupy active execution slots.
 - Show the priority and any AI-assigned reason in the task panel/details.
+
+
+## 26. Scheduled task start — approved
+
+- A user may give an AI task a scheduled start date and time.
+- When the scheduled start time arrives, the system automatically makes the task eligible for execution. It does not ask the user for a second approval merely to start the delegated task.
+- The task still observes prerequisite dependencies and the global maximum of three concurrent active AI tasks. If dependencies are incomplete or all execution slots are occupied, it remains queued and starts when it becomes eligible and capacity is available.
+- Queue priority rules continue to apply to eligible queued tasks.
+- Automatic task start does not grant blanket permission for consequential external actions. Existing approval requirements still apply to actions such as sending an email, permanently deleting data, or other gated actions unless the user has explicitly authorised that specific action.
+- Scheduled task execution produces no notifications.
+- The dashboard must show the scheduled start time and whether the task is waiting for its schedule, waiting for a dependency, queued for capacity, or running.
