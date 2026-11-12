@@ -229,3 +229,18 @@ flowchart TD
 9. Implement email action endpoints and approval gates.
 10. Implement Apple Shortcut bridge.
 11. Add observability, recovery, rate limiting, security tests and end-to-end tests.
+
+
+## 11. Task priority queue and bounded parallel execution — approved
+
+- The task scheduler uses a priority-aware queue and a bounded worker pool.
+- Run **up to three independent delegated AI tasks concurrently** for this user's workspace.
+- This is a maximum concurrency limit, not a requirement to run three tasks at all times.
+- Tasks with dependencies must execute in dependency order. A task step cannot start until its prerequisite steps are confirmed complete.
+- Independent tasks may run in parallel, subject to the maximum of three active tasks.
+- Tasks waiting for user input/approval, paused by the user, or waiting for an external Apple device do not occupy an active AI worker slot.
+- The scheduler prioritises queued tasks by priority: Urgent, High, Normal, Low. Within the same priority, use FIFO ordering unless a valid due-time rule is explicitly configured.
+- A higher-priority task may move ahead of queued lower-priority tasks, but must not abruptly interrupt a running step. Running tasks pause only at safe persisted checkpoints when necessary.
+- Enforce per-user and provider/API rate limits, bounded retries, backpressure and fair scheduling. Do not exceed the concurrency cap to work around rate limits.
+- The concurrency limit must be configurable by deployment operator for future capacity tuning, with **3** as this user's approved default.
+- Surface queued position, task priority, active/queued state, dependencies, current step and persisted progress in the task UI.
