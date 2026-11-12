@@ -96,3 +96,67 @@ Use a modern productivity aesthetic:
 | Original email | Hidden by default; expands inline |
 | Visual direction | Modern productivity |
 | Mobile layout | Responsive list-to-detail flow |
+
+
+## 9. Follow-ups screen — approved design
+
+The Follow-ups screen uses the same modern productivity visual language as the Inbox: clean typography, neutral surfaces, subtle separators, compact status labels, and no decorative charts or excess cards.
+
+### Main sections
+
+Use three primary working filters:
+1. **All** — all active follow-up records.
+2. **Action Required** — tasks where the user needs to act.
+3. **Awaiting Response** — tasks where another person or organisation owes a response.
+
+Overdue status should be visible as a status/date indicator within the relevant task, not as a separate large navigation area.
+
+### Follow-up item content
+
+Each item should show:
+- Clear task title.
+- Person, organisation or responsible party.
+- Source email conversation and provider/account.
+- Short explanation of what is required or awaited.
+- Due date or expected response date, when known.
+- Status such as Pending, Waiting, or Overdue.
+
+### Actions on every active follow-up
+
+- **Open Email Trail** — open the related conversation.
+- **Mark Complete** — immediately remove the item from the active Follow-ups screen.
+- **Edit** — change task title, description, owner or due date.
+- **Snooze** — choose a later review date.
+- **Remove from Follow-ups** — remove only the tracking item; never delete or alter the email, conversation, or linked AI conversation.
+
+The **Remove from Follow-ups** action must always be available for each active item, not hidden in an inaccessible menu. It may use a compact text action to keep the visual design uncluttered.
+
+### Completed items — approved behaviour
+
+- When a follow-up is marked complete, it disappears immediately from all active Follow-ups views.
+- Do not show a Completed tab or separate Completed section in the Follow-ups interface.
+- The completion event may be retained internally for audit/history and duplicate prevention, but must not clutter the user's active task view.
+- Completion must not delete the underlying email trail or AI conversation.
+
+### AI Assistant integration
+
+The AI Assistant can:
+- Remove a specified email trail from follow-ups.
+- Mark a follow-up complete.
+- Edit or snooze a follow-up.
+- List all active follow-ups.
+- Report task status and explain what is awaited or overdue.
+
+For ambiguous commands, ask which task the user means. After a successful action, show a clear result inside the dashboard. No notifications.
+
+## 10. Final approved primary navigation
+
+The initial application uses only four primary sections:
+1. **Inbox**
+2. **Follow-ups**
+3. **AI Assistant**
+4. **Accounts & Settings**
+
+Do not create separate top-level Conversations, Overview, or Notes pages for the first release. Open conversations from the Inbox; use the AI Assistant and email actions to create Apple Notes and Reminders.
+
+The four-section navigation supersedes earlier exploratory navigation concepts in this document.
