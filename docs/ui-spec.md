@@ -160,3 +160,50 @@ The initial application uses only four primary sections:
 Do not create separate top-level Conversations, Overview, or Notes pages for the first release. Open conversations from the Inbox; use the AI Assistant and email actions to create Apple Notes and Reminders.
 
 The four-section navigation supersedes earlier exploratory navigation concepts in this document.
+
+
+## 11. AI Assistant screen — approved layout
+
+The AI Assistant is a ChatGPT-style workspace for natural-language commands, email analysis and delegated tasks.
+
+### Layout
+
+- Main conversation area occupies the majority of the screen.
+- A compact side panel shows active AI-assigned tasks and their status.
+- The side panel must remain visually secondary and must not crowd the conversation.
+- On narrow/mobile screens, the task panel becomes a collapsible panel or separate drawer; the chat remains the primary view.
+- The user can start a new AI conversation and switch between named persistent Email Assistant conversations.
+- Each conversation may be linked to one or more relevant email threads. New messages in linked email threads update the linked application-managed AI conversation automatically, subject to the functional-spec platform boundary.
+
+### Chat functionality
+
+- Natural-language instructions to control supported Email Assistant actions.
+- Delegate multi-step tasks to the AI.
+- Ask questions about selected emails or linked conversations.
+- Request summaries, quotation comparisons, reports, and reply preparation.
+- Ask for task updates, all active tasks, completed work, remaining work, or blockers.
+- Create Apple Notes and Reminders through authenticated device Shortcuts.
+- AI can propose actions and execute only the supported operations under the approval rules in the functional specification.
+
+### Task side panel
+
+Show compact task rows with:
+- Task title.
+- Status: Queued, In Progress, Waiting for You, Completed, or Failed.
+- Brief progress or next action.
+- Last updated time.
+
+Completed tasks should not dominate the active-task panel; they can be collapsed or reached through task history. No proactive notifications.
+
+### AI conversation controls
+
+- New conversation.
+- Rename conversation.
+- Search or switch conversations.
+- Link/unlink email trails.
+- See when a linked email trail last updated the AI conversation.
+- Ask the AI to summarise the current task or conversation.
+
+### Approved design decision
+
+**Main Chat + Compact Side Task Panel** is the approved desktop layout. On mobile, the task panel collapses into a drawer or separate view.
