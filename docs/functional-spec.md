@@ -1,7 +1,6 @@
 # Email Assistant — Functional Specification
 
-**Status:** Agreed baseline for per-email behaviour  
-**Project:** Private Email Assistant  
+**Status:** Agreed product requirements  
 **Accounts:** Multiple iCloud Mail and Gmail accounts  
 **AI preference:** ChatGPT / OpenAI models  
 **Processing:** Cloud backend  
@@ -14,418 +13,229 @@ The dashboard must show summaries by default, not the full original email body.
 
 Each email card must show two distinct sections:
 
-1. **Summary of the current email** — a summary of only the latest selected message.
+1. **Summary of the current email** — a summary of only the selected/latest message.
 2. **Summary of the entire email trail** — a separate chronological summary of the available conversation from the earliest available message through the latest message.
 
 These summaries must never be merged into one. When a new message is received in a conversation, the current-message summary and whole-trail summary must be refreshed independently.
 
-The email card should also show sender, subject, account, date/time, read status and relevant attachment information.
+The card also shows sender, subject, account, date/time, read status, priority and attachment information.
 
 ## 2. Required per-email actions
 
-The following controls are required for each email:
+### Delete Email
+- Ask for confirmation.
+- Move the selected message to the relevant provider's Trash.
+- Do not permanently delete by default.
 
-1. **Delete Email**
-   - Ask for confirmation.
-   - Move the selected message to the relevant provider's Trash.
-   - Do not permanently delete by default.
+### Show Original Email
+- The full original message is hidden by default.
+- Selecting this control expands the original content inline in the selected-email panel.
+- Display email HTML safely; treat message content as untrusted input.
 
-2. **Show Original Email**
-   - The full original message is hidden by default.
-   - Selecting this button reveals the original content, headers and available attachments.
-   - Display email HTML safely; treat message content as untrusted input.
+### Create Reply
+- Open an interactive ChatGPT-style reply workspace.
+- ChatGPT prepares an initial draft, but the user can also write directly.
+- The user can ask ChatGPT to rewrite, shorten, expand or change tone, and can manually edit the draft.
+- Reply All is the default.
+- The user can change recipients and switch to replying to one particular person.
+- To, CC and BCC must be editable.
+- A reply or Reply All must be sent from the exact email account/address that received the selected original message. Display this From value read-only/locked. Never silently use another account.
+- If the original receiving account cannot send, ask the user to reconnect it.
+- The final email must remain in the original conversation where the provider supports it.
+- Sending an existing reply requires explicit final approval of the content and recipients.
 
-3. **Create Reply**
-   - Open an interactive ChatGPT-style reply workspace.
-   - ChatGPT prepares an initial draft, but the user can also write directly.
-   - The user can give ChatGPT further instructions, request rewrites, change tone, shorten or expand the draft, and make manual edits.
-   - Reply All is the default.
-   - The user can change recipients and switch to replying to one particular person.
-   - To, CC and BCC must be editable.
-   - The correct originating email account must be used.
-   - The final email must remain in the original conversation where the provider supports it.
-   - Sending always requires explicit final user approval. No automatic sending.
+### Block User
+- Provide a sender-blocking action.
+- Implement provider-level blocking/rules where supported and permitted.
+- Where a provider does not expose a native blocking API, clearly label the operation as an application-level block/filter.
+- Explain the effect and scope before enabling the rule.
 
-4. **Block User**
-   - Provide a sender-blocking action.
-   - Implement provider-level blocking/rules where supported and permitted.
-   - Where a provider does not expose a native blocking API, clearly label the operation as an application-level block/filter rather than claiming the sender is blocked at provider level.
-   - Explain what will happen to future messages before enabling the rule.
+### Add Reminder
+- Accept natural-language instructions.
+- Parse title, date, time and Asia/Kolkata timezone by default.
+- Queue a secure command for an authorised Apple Shortcut on Mac or iPhone.
+- The action is complete only after the Shortcut reports successful creation in Apple Reminders.
+- Keep pending/completed/failed execution state and an email/thread reference when applicable.
 
-5. **Add Reminder**
-   - Accept natural-language instructions.
-   - Parse title, date, time and time zone (Asia/Kolkata by default).
-   - Queue an authorised Apple Shortcut command.
-   - Record pending, completed or failed execution state.
-   - Include an email/thread reference when the command originates from an email.
+### Add Note
+- Accept natural-language note content.
+- Queue a secure command for an authorised Apple Shortcut.
+- The action is complete only after the Shortcut reports successful creation in Apple Notes.
+- Keep execution state and a source email/thread reference where applicable.
 
-6. **Add Note**
-   - Accept natural-language note content.
-   - Queue an authorised Apple Shortcut command for Apple Notes.
-   - Record execution state and preserve a reference to the source email/thread where applicable.
+### Update a particular ChatGPT chat
+- Let the user select a destination application-managed AI conversation and send the email/thread context to it.
+- Automatically append new messages to the linked application-managed AI conversation when they arrive.
+- Do not claim that the ordinary ChatGPT history sidebar can be directly modified unless a supported ChatGPT Apps capability is verified.
 
-7. **Update a particular ChatGPT chat**
-   - Provide a way to choose a destination ChatGPT conversation and submit the selected email or conversation context.
-   - **Feasibility constraint:** Do not claim that a normal external API can append content to any arbitrary existing ChatGPT chat in the user's standard ChatGPT history. Verify supported ChatGPT Apps/SDK capabilities and account eligibility. If direct native ChatGPT-history update is unavailable, present a transparent alternative, such as maintaining named persistent assistant conversations in the Email Assistant or opening a ChatGPT App conversation with the supplied context. Do not silently substitute one for the other.
-
-8. **Forward**
-   - Open a forward composer.
-   - Allow recipient, CC and BCC editing and an optional message.
-   - Preserve original message context and available attachments where supported.
-   - Require explicit approval before sending.
+### Forward
+- Open a forward composer.
+- Allow recipient, CC and BCC editing and an optional message.
+- Default to the email account that received the selected source message.
+- Preserve original message context and available attachments where supported.
+- Require explicit approval before sending.
 
 ## 3. Email accounts
 
 - Support multiple iCloud Mail accounts.
 - Support multiple Gmail accounts.
-- Use the appropriate provider integration: iCloud IMAP/SMTP where suitable; Gmail API with Google OAuth.
+- Use iCloud IMAP/SMTP where suitable and Gmail API with Google OAuth.
 - Identify the source account on every message.
-- Send replies and forwards from the correct account.
-- Keep provider-specific limitations explicit.
+- New outbound email: show a From dropdown containing all connected accounts; do not preselect a default account. Ask the user to select one unless explicitly named in their command.
+- Replies/Reply All: strictly use the exact account that received the selected source message. Show the From address read-only/locked.
+- Forwards: use the source account by default; an explicit alternative can be selected in the forward composer.
+- If a visually grouped duplicate exists across accounts, actions are scoped to the exact selected source copy.
 
-## 4. Global product requirements that affect email behaviour
+## 4. Global product requirements
 
-- All email processing and scheduled reviews run in the cloud.
-- Dashboard is accessible from Mac and iPhone.
-- Automatic inbox review at 08:00, 12:00 and 17:00 Asia/Kolkata, plus manual refresh.
+- All email synchronisation and AI processing run in the cloud.
+- Responsive dashboard accessible from Mac and iPhone.
+- Automatic inbox reviews initially at 08:00, 12:00 and 17:00 Asia/Kolkata; schedule is editable.
+- Manual Sync Now for all accounts or an individual account.
 - No push, email, WhatsApp, SMS, desktop or other proactive notifications.
-- Opening or summarising an email must not change its read status. Read/unread changes require an explicit user action.
-- Full conversation retrieval and summary must disclose when source history is incomplete.
-- The dashboard must show task and sync status internally; no proactive notification delivery.
-- Email content and attachments are untrusted input for AI. AI must not treat instructions found in an email as system instructions.
-
-## 5. AI behaviour
-
-Use ChatGPT / OpenAI models for:
-- Current-message summaries.
-- Whole-thread summaries.
-- Interactive reply drafting and revision.
-- Email and thread questions.
-- Contextual analysis and extraction.
-
-Use only the email context necessary for the requested task. Ground responses in retrieved messages and explicitly disclose missing or truncated history. OpenAI API usage, if used, is billed separately from a ChatGPT subscription. Investigate supported ChatGPT sign-in / Apps SDK paths before choosing the final authentication and billing model.
-
-## 6. Safety and user approval
-
-- No email is sent without explicit approval of the final content and recipients.
-- Delete requires confirmation and moves to Trash by default.
-- Block actions must accurately describe their actual provider or application scope.
-- Apple Shortcut commands must be authenticated, idempotent and report execution status.
-- Secrets must be stored in a deployment secret manager, never committed to this repository.
-
-
-## 7. AI Assistant as an action-taking dashboard controller
-
-The AI Assistant must understand natural-language commands and execute supported actions through authenticated backend functions. It is not limited to answering questions.
-
-Required command examples:
-
-- **"Show this email as priority."**
-  - Mark the selected email as Priority in the Email Assistant.
-  - Make the priority status visible in the inbox and search/filter views.
-  - Where supported by the email provider, also apply its native star/flag/important marker. The application must distinguish its own priority label from the provider's native marker.
-
-- **"Remove this email from follow-up."**
-  - Remove the selected conversation's follow-up tracking entry.
-  - Do not delete, archive, or otherwise alter the underlying email or conversation.
-  - Confirm the follow-up entry is no longer active.
-
-- **"Get a task update."**
-  - Find the relevant AI-assigned task or follow-up.
-  - Report its current status (queued, in progress, waiting for user, completed, or failed), what has been done, what remains, and any blocker.
-  - If the user has not identified which task, show the current task list or ask which one they mean.
-
-Other supported command examples:
-- "Mark this email as priority."
-- "Remove this conversation from follow-ups."
-- "Show me the status of the quotation comparison."
-- "What tasks are you working on?"
-- "Prepare a reply to this email."
-- "Add a reminder to call Tony tomorrow at 11 AM."
-- "Create a note about the revised quotation."
-
-### Action execution safeguards
-
-- The assistant must resolve "this email", "this conversation", or "this task" from the current dashboard selection/context.
-- Before performing a consequential action, show a clear interpretation and ask for confirmation where appropriate.
-- Low-risk reversible actions (such as setting an app-level priority or removing a follow-up tracking link) may execute immediately when the target is unambiguous, with the result shown in the dashboard.
-- Do not claim success until the backend/provider or Apple Shortcut reports successful completion.
-- Each action must be idempotent or protected against duplicate execution.
-- Record action result and timestamp in the activity history without logging full email content.
-
-## 8. Native Apple Notes and Reminders are the required destinations
-
-Creating a record only inside the Email Assistant database does **not** satisfy an Add Note or Add Reminder command.
-
-- **Add Reminder** must create a real item in the user's Apple Reminders app.
-- **Add Note** must create a real note in the user's Apple Notes app.
-- The user can issue either command in natural language, without filling in a form.
-- The backend parses the intent and content, then queues a secure command for an authorised Apple Shortcut on the user's Mac or iPhone.
-- The Shortcut performs the native action in the relevant Apple app.
-- A command remains visibly **Pending on device** until a Shortcut executes it.
-- The dashboard changes it to **Completed** only after a confirmed Shortcut result; errors are shown clearly and can be retried safely.
-- Preserve a link/reference to the originating email or thread in the note/reminder when feasible.
-- Shortcuts must be authenticated, device-enrolled and idempotent to prevent duplicate entries.
-- If no enrolled device is available, the backend can queue the command, but it cannot create a native Apple Note or Reminder until an Apple device is available to execute the Shortcut.
-
-## 9. AI-assigned tasks and task updates
-
-The AI Assistant must support delegated multi-step tasks, separate from email follow-up records.
-
-- Users can assign a task in natural language.
-- The AI creates a task record with a clear title, scope, relevant email/thread references, status and progress.
-- The task list must support queued, in progress, waiting for user, completed and failed states.
-- The user can ask for updates on one task or all active tasks.
-- Task updates must explain completed steps, remaining work, blockers and any required user decision.
-- The assistant must not claim background progress if no worker execution is actually running.
-- Email sending, deleting, blocking, or other consequential actions remain approval-gated as specified elsewhere.
-
-
-
-## 10. Automatic updates to the linked AI conversation when new email arrives
-
-This is a required behaviour.
-
-### Linking model
-
-- A user can link an email thread to a selected, persistent AI Assistant conversation.
-- The dashboard stores the relationship between the email provider/account + thread identity and the OpenAI API Conversation ID.
-- A thread may have one designated AI conversation by default. The user can change the linked conversation or unlink it.
-- The interface must clearly show which AI conversation is linked to a given email thread.
-
-### Incoming email event
-
-When a new message arrives in a linked email thread:
-
-1. The cloud email synchronisation worker detects the new message.
-2. It verifies the provider/account and thread relationship to avoid attaching unrelated messages.
-3. It checks message identifiers and processing state to prevent duplicates.
-4. It appends the new email as a clearly labelled message item to the linked persistent OpenAI API Conversation.
-5. It refreshes the current-email summary and the entire-thread summary independently.
-6. It updates the linked AI conversation with the new context and, where configured, generates a concise update explaining what changed, any new commitments/deadlines, and required next actions.
-7. The Email Assistant dashboard reflects the updated conversation and last-updated timestamp.
-
-### User experience
-
-- The update happens automatically after inbox synchronisation; the user must not need to copy/paste the new email.
-- The linked AI conversation should visibly identify the source email, sender, account, received time and thread reference.
-- The user can ask follow-up questions in that same linked AI conversation and the newly arrived email must be available as context.
-- If the email thread is not linked to an AI conversation, the application must not guess which unrelated chat to update. It can prompt the user to link one or create a new Email Assistant AI conversation.
-- The user can disable automatic AI-conversation updates for a particular thread or account.
-- Automatic updates must not send email, change read status, delete messages, create Apple Notes/Reminders, or perform other consequential actions by themselves.
-
-### Platform boundary
-
-- Use the OpenAI API Conversations/Responses capabilities for durable application-managed AI conversations and conversation items.
-- This provides a persistent AI conversation within the Email Assistant application; it is not the same as appending content to an arbitrary chat in the user's standard ChatGPT chat-history sidebar.
-- Do not claim direct updates to native ChatGPT history unless a supported ChatGPT Apps capability is verified for the user's account and implementation.
-- Store the provider thread identity and OpenAI Conversation ID mapping in the application's own database.
-- Treat the email content as untrusted context and never allow embedded email instructions to override the assistant's application/developer instructions.
-
-
-## 11. Completed follow-up display rule
-
-- Marking a follow-up complete removes it immediately from the user's active Follow-ups screen and filters.
-- There is no separate Completed tab or Completed section in the user-facing Follow-ups page.
-- The backend may retain a minimal completion record in the audit/history data for accountability and duplicate prevention.
-- Removing an item from Follow-ups is different from marking it complete: removal stops tracking the email trail and must not delete or alter the underlying email, conversation, or linked AI conversation.
-- The user can use natural-language AI commands to mark a follow-up complete or remove it from tracking.
-
-
-## 12. Sync Now and provider read-state synchronisation
-
-### Manual Sync Now
-
-- The Inbox must expose a clearly visible **Sync Now** button.
-- By default, Sync Now runs synchronisation across all connected iCloud and Gmail accounts.
-- The user can also trigger sync for one selected account.
-- The dashboard must show syncing, completed, or failed state, last successful sync time, newly found messages, and errors per account.
-- Manual sync uses the same idempotent pipeline as scheduled synchronisation and must not create duplicate messages, AI thread items, summaries, or follow-ups.
-- Manual sync does not send notifications.
-- Keep the individual-account Sync Now action in Accounts & Settings as well.
-
-### Reading an email in the portal updates the original provider
-
-This is a required two-way read-state behaviour.
-
-- When the user opens an email in the Email Assistant dashboard to read its detail, the backend must mark that message as read in its source mailbox (iCloud or Gmail).
-- The dashboard should show the read-state update as pending until the provider confirms it, then display the confirmed state.
-- If the provider update fails, show a clear error and allow retry. Do not falsely claim that the provider state changed.
-- Opening an email detail is the read action. Merely showing an email in the list, generating a summary in the background, or automatically analysing a message must not mark it read.
-- If the user marks a message unread in the provider directly, the next synchronisation must reflect that unread state in the dashboard.
-- If the user marks a message read in the provider directly, the next synchronisation must reflect that read state in the dashboard.
-- Provider state is authoritative when reconciling external changes. Record the latest confirmed provider read state and sync timestamp.
-- Apply the provider-specific API/protocol for the source account (Gmail API for Gmail; iCloud-supported mailbox protocol for iCloud).
-- Read-state updates must not send notifications.
-
-
-## 13. Initial history import and ongoing synchronisation window
-
-- The approved initial import window for every newly connected iCloud or Gmail account is the most recent **90 days**.
-- The backend must calculate the initial start date separately for each account using the account's connection time and local time zone settings.
-- The import must be paginated/batched, resumable after interruption, idempotent, and safe to retry without duplicating messages, thread items, AI conversation items, summaries, or follow-ups.
-- Record per-account initial import progress, start/completion timestamps, imported message counts, and errors.
-- Do not bulk-import the account's entire older mailbox during initial setup.
-- Older email remains in the original provider mailbox. When the user searches for or opens an older conversation, the application may fetch the matching messages on demand from the provider, subject to provider permissions, search capabilities, and rate limits. Make clear when the full older trail could not be retrieved.
-- Once initial import is complete, use incremental synchronisation from a saved provider cursor/history state to capture new messages and supported changes, rather than repeatedly importing the same 90-day range.
-- The 90-day initial import policy applies independently to every newly connected account.
-- Manual Sync Now and scheduled sync must use the incremental sync path after initial import; they must not restart a full 90-day import unless the user explicitly requests a repair/resync operation.
-
-
-## 14. Cross-account duplicate emails — approved display behaviour
-
-- If the same underlying email is present in more than one connected account (for example, iCloud and Gmail), show one visually grouped entry in the unified Inbox.
-- Display every source account represented by the grouped entry (for example, iCloud and Gmail badges).
-- Grouping is a presentation layer only. Preserve each account's original provider message, identifier, folder, read state, flagged/priority state, and other provider-specific state independently.
-- Opening or marking one account's copy as read must not silently change the read state of another account's copy. The normal rule still applies: opening a message copy marks that specific provider copy as read.
-- Deleting, archiving, moving, blocking, or changing flags for one account's copy must not silently perform the same provider operation on another account's copy. Where a user wants a bulk action across all grouped copies, make that an explicit, separately labelled action.
-- The grouped entry can show a combined summary when the underlying messages are verified duplicates, but the system must retain the original source copies and be able to open each copy/account separately.
-- Do not group merely because subject, sender display name, or approximate date looks similar. Use reliable duplicate identity checks and preserve uncertain matches as separate entries pending review.
-
-
-## 15. Duplicate detection confidence — approved strict matching rule
-
-- Prefer exact provider/account message identifiers and the original RFC Message-ID when available.
-- For cross-account matching, require a reliable identity match and corroborating evidence (such as sender, subject, sent/received time and normalised content or MIME-part fingerprints).
-- Do not rely on subject, sender display name, or approximate timestamp alone.
-- If an identifier is missing or the evidence is ambiguous, keep the messages as separate Inbox entries. Do not automatically merge uncertain matches.
-- Preserve the full independent account copies even when a high-confidence visual grouping is made.
-- Allow a user to manually group or ungroup entries only through an explicit action, and retain an audit event for that change.
-
-
-## 16. Automatic AI priority detection — approved behaviour
-
-- During processing of each new email, the AI must assess whether it deserves priority.
-- Priority signals may include explicit urgency, time-sensitive deadlines, payment or financial exposure, legal or contractual implications, operational disruption, important customer/supplier commitments, security issues, and messages requiring a timely decision or response.
-- The AI should not mark routine newsletters, promotions, automated receipts, or informational messages as priority unless the actual content contains a significant actionable issue.
-- When marking an email as priority, store a concise reason that can be shown in the dashboard (for example: "Payment deadline tomorrow" or "Supplier needs approval to proceed").
-- Distinguish AI-assigned priority from user-assigned priority in the data model and interface.
-- Users can manually mark an email as priority or remove its priority.
-- A manual user choice takes precedence over future automatic AI reassessment for that message until the user resets the priority.
-
-## 17. Automatic reply draft for every incoming email — approved behaviour
-
-- When a new incoming email is synchronised, ChatGPT must automatically prepare a reply draft for that email, not only when the user clicks Create Reply.
-- The draft must be saved in the Email Assistant database and associated with the exact source message, email account and conversation/thread.
-- The dashboard must make the prepared draft available from the relevant email card/detail view through the Create Reply action.
-- The user can open the draft in the interactive ChatGPT-style reply workspace, request changes from ChatGPT, edit the text directly, change recipients, or discard the draft.
-- Reply All is the default recipient mode, but the user can switch to replying to one person and edit To, CC and BCC.
-- Draft preparation does not mark the original email as read.
-- Draft preparation must never send an email, create an externally visible provider draft, or contact any recipient automatically unless the user explicitly chooses a separately described save-to-provider-drafts action.
-- Sending requires explicit approval of both the final content and recipient list.
-- A draft should remain attached to its source email/thread and be updated or versioned when the user asks ChatGPT to revise it.
-- Generate a draft record for every incoming email in the synchronised review scope, including routine, automated, promotional, and no-reply messages. Do not silently skip an incoming message.
-- When replying would be inappropriate (for example, a mailing list, automated sender, or address that does not accept replies), still create a draft state that clearly says "Reply not recommended", explains why, and does not fabricate a suitable recipient or encourage sending. The user can explicitly override this assessment.
-- For messages where a reply is appropriate, prepare a useful, context-aware reply draft. If essential information is missing, use cautious wording with clear placeholders or ask the user a question in the reply workspace; do not invent facts or commitments.
-- Spam or messages excluded by the user's explicit account/folder sync settings may be excluded from automatic draft generation; exclusions must be configurable and visible.
-- On later incoming messages in the same conversation, prepare a draft for the new message and preserve any earlier user-edited drafts rather than overwriting them.
-- Draft creation must be idempotent: repeated syncs must not create duplicate draft records for the same incoming message and drafting version.
-- Keep provider-specific draft saving separate from the internal AI draft. The AI draft is internal until the user explicitly chooses to save it to iCloud/Gmail Drafts or send it after approval.
-
-
-## 18. Compose and send a new email directly from the AI Assistant chat
-
-This is an approved capability in addition to replying to an existing message.
-
-- The user can write or dictate a completely new email in the Email Assistant's ChatGPT-style AI conversation.
-- The user can ask ChatGPT to draft, revise, shorten, expand, translate, or change the tone of the new email.
-- The user can then explicitly instruct the assistant to send it, for example: "Send this email to tony@example.com from my iCloud account."
-- A clear, explicit user instruction to send the current final email is the required approval to send. Do not require a second confirmation modal or make the user copy the message into a separate compose screen when all details are unambiguous.
-- Before sending, the backend must resolve and validate:
-  - Exact To recipients (and CC/BCC if specified).
-  - The sending email account/provider.
-  - Subject.
-  - Final body content and any attachments.
-- If the recipient, sender account, subject/body, or attachment intent is ambiguous or missing, ask the user a focused clarification before sending. Do not guess recipients or the sending account.
-- If the AI revises the email after the user's send instruction, the revised content is not covered by the earlier approval; ask the user to approve the changed final version.
-- Once all required details are known and the user has explicitly instructed sending, send directly through the chosen iCloud or Gmail account using the provider's supported send operation.
-- Return the provider's actual send result. Distinguish accepted/submitted from delivered; do not claim delivery solely because the provider accepted the request.
-- Record the sending account, recipients, subject, timestamp, provider result and message identifier in the activity history, while avoiding unnecessary body content in logs.
-- Prevent accidental duplicate sends. If the provider response is uncertain, inspect the provider's Sent folder/message state before any retry.
-- This capability is for new outbound emails as well as the existing approval-gated reply and forward flows. Reply All remains the default for replies; a new email has explicitly chosen recipients.
-- The user's direct send instruction is a meaningful approval event. It does not authorise sending other drafts or future messages.
-
-### ChatGPT product boundary
-
-- The direct-send behaviour is guaranteed only within the Email Assistant chat/application when its authenticated backend send tool is available.
-- Sending from an ordinary ChatGPT conversation outside the Email Assistant requires a supported ChatGPT App/MCP integration and account/connector permissions. Do not promise that the external backend can silently send from every regular ChatGPT chat.
-
-
-## 20. View original attachment — explicit required action
-
-- Every email attachment must have a clearly visible **View Original Attachment** action wherever preview is supported.
-- For PDFs, open the original PDF in an in-app document viewer or a new secure viewer panel, preserving the original pages and layout.
-- For images, display the original image at a readable size with zoom where practical.
-- For supported Office documents, provide an original-file preview where technically supported; otherwise provide a clearly labelled download/open-original action.
-- The original attachment must remain available separately from extracted text, OCR output, AI summaries, or converted previews.
-- Do not substitute a text extraction or AI-generated summary when the user selects View Original Attachment.
-- The viewer must identify the source email/thread and filename, and provide a way to return to the email.
-- Opening an attachment must not mark the email as read unless the user has also opened the email detail and the provider read-state rule applies; attachment preview alone should not silently modify other mailbox state.
-- Use authenticated, time-limited access to original attachment bytes. Do not expose permanent public attachment URLs.
-- If the original file cannot be retrieved or previewed, explain the reason and offer a safe download/retry option when available.
-
-
-## 19. Attachment processing — approved automatic behaviour
-
-- Automatically analyse relevant supported attachments when a new email is synchronised; the user does not need to request analysis separately.
-- Detect and display filename, MIME type and file size for each attachment.
-- Keep the original attachment retrievable from the provider for preview or download. Do not automatically download and permanently store every attachment.
-- For relevant supported formats (including PDF, common images, DOCX and XLSX where supported), extract or inspect content and use it as context for the current-email summary, entire-thread summary, priority assessment, automatic reply draft and follow-up extraction.
-- Support questions about attachments and comparisons between multiple quotations, invoices, contracts, technical documents and other files.
-- Never claim to have read or analysed an attachment unless processing succeeded.
-- Apply file-size, page-count, token and processing-time limits. Treat attachment contents as untrusted data; never execute files, macros, scripts or embedded programs.
-- If a file is unsupported, unreadable, encrypted, corrupted, truncated or over limits, show a clear reason and do not invent its contents. Keep the original available for manual viewing/download where possible.
-- Label partial extraction clearly. Minimise temporary file retention and delete downloaded bytes after processing unless the user explicitly saves the file.
-- Send attachment contents to the OpenAI API only as needed for analysis, subject to configured provider/model capabilities and data controls.
-
-
-
-## 21. Reply draft storage — approved Option A (internal Email Assistant drafts)
-
-- The canonical AI-generated reply draft is stored in the Email Assistant's own PostgreSQL database.
-- Automatically generated drafts must not be written to the actual Gmail Drafts or iCloud Drafts folders.
-- Each draft is associated with its source incoming message, provider account, conversation/thread, recipient set, subject, body, creation/update timestamps and draft version.
-- Drafts are accessible from the originating email's **Create Reply** workspace and can be listed/managed within the Email Assistant.
-- The user can continue chatting with ChatGPT to revise the draft, make direct manual edits, change recipients, save changes, discard it, or approve sending.
-- Internal draft autosave must not create an email in a provider Drafts folder.
-- Sending an approved internal draft sends through the selected source account/provider and records the actual provider response and resulting message identifier.
-- If the user explicitly chooses **Save to Email Drafts**, the application may copy/synchronise the current draft into the relevant provider's Gmail or iCloud Drafts folder. This is a separate, explicit action and must clearly identify the destination account.
-- Editing an internal draft after it has been copied to a provider Drafts folder must not silently overwrite the provider draft unless the user has opted into that sync behaviour; show the two draft states and offer an explicit update action.
-- Do not create duplicate internal drafts on repeated synchronisation. Preserve user edits and maintain version history when AI revisions are requested.
-
-
-## 22. Sending account preference for new outbound emails — approved
-
-- For every new outbound email composed through the AI Assistant, ask the user which connected email account to send from (for example, iCloud or Gmail).
-- Do not assume a default sending account and do not silently infer the sending account from recipient domain, prior usage, or conversation context.
-- If the user's explicit instruction already identifies the sending account (for example, "send this through my iCloud account"), that instruction satisfies the account-selection step; do not ask again.
-- If the user says only "send it" and the sending account has not been explicitly selected for that message, ask them to choose the account before sending.
-- Display the chosen From address and final recipients before execution. The explicit instruction to send the final message remains the approval to send, provided the account and recipients are unambiguous.
-- Existing replies and forwards should default to the source account of the original email/conversation, while allowing the user to change the sending account before sending.
-
-
-## 23. Sending-account dropdown and strict reply account matching — approved clarification
-
-This section clarifies and takes precedence over any earlier wording that suggested changing the sending account for replies or forwards.
-
-### New outbound email
-- Show a **From** dropdown containing all connected and authorised sending accounts (for example, the user's iCloud and Gmail addresses).
-- Do not select a default account for a newly composed email.
-- The user must select the sending account from the dropdown before sending, unless they explicitly named the account in their natural-language instruction.
-- The selected From address must remain visible in the final send review.
-
-### Reply and Reply All
-- A reply or Reply All **must be sent from the exact email account/address that received the original email**.
-- Select the original receiving account automatically and do not allow the sending account to be changed for that reply.
-- Display the From address in the reply workspace as a read-only field or locked dropdown, so the user can verify which account will be used.
-- If the original receiving account has been disconnected, lost authorisation, or cannot send, do not silently use another account. Explain the issue and ask the user to reconnect the original account before proceeding.
-- For a conversation with messages across multiple accounts, the reply must be tied to the specific selected source message and use that message's receiving account. Do not infer the sending account from another copy or a visually grouped duplicate.
-
-### Forward
-- By default, forward from the same account in which the selected source email was received.
-- Display this account in the From field. If the user wishes to forward from another account, require an explicit account selection in the forward composer and make the change visible before approval.
-
-### Priority of rules
-- New outbound email: user selects account through the From dropdown.
-- Reply / Reply All: strictly use the account that received the selected original message.
-- Forward: default to the account that received the selected original message; allow explicit change in the forward composer.
+- Opening an email detail in the portal marks that exact source message as read in the provider; provider confirmation is required before claiming success.
+- Opening/listing, background AI analysis or attachment processing alone must not change read status.
+- Read/unread state changes in Gmail/iCloud are reflected in the dashboard at the next synchronisation.
+- Full conversation retrieval must disclose when source history is incomplete.
+- Sync and task status are shown only inside the dashboard.
+
+## 5. Synchronisation and duplicate handling
+
+- First connection of each account imports the most recent 90 days of emails.
+- Initial import is paginated, resumable and idempotent.
+- Older messages are fetched on demand from the provider when searched/opened, subject to provider capabilities.
+- After initial import, use incremental sync cursors/history rather than repeatedly importing 90 days.
+- Manual Sync Now and scheduled sync use the same safe pipeline.
+- Use exact provider message identities and RFC Message-ID where available.
+- For cross-account duplicates, require high-confidence identity and corroborating evidence. Do not merge on subject/sender alone.
+- High-confidence cross-account duplicates appear as one visual inbox entry with account labels, while retaining separate mailbox copies and independent read/delete/flag states.
+- When uncertain, show entries separately.
+
+## 6. AI summaries, priority and reply drafts
+
+For each new incoming email:
+- Generate a summary of the current email.
+- Generate/update a separate summary of the entire thread.
+- Extract purpose, key information, amounts, dates, deadlines, commitments, unanswered questions and required actions.
+- Automatically assess priority based on urgency, time-sensitive deadlines, financial/legal/contractual exposure, operational disruption and significant commitments.
+- Store a concise reason for AI-assigned priority.
+- User priority overrides AI priority until reset.
+- Prepare an internal AI reply draft for every incoming email in the synchronised review scope.
+- For messages where replying is inappropriate (mailing list, automated sender, no-reply address or similar), create a clear "Reply not recommended" draft state with an explanation; do not invent an appropriate recipient or encourage sending.
+- Drafts are stored in the Email Assistant database, not Gmail/iCloud Drafts by default.
+- Drafts can be revised through chat and direct editing. Sending requires explicit approval.
+- Draft creation must be idempotent and must not mark the source email read.
+- Do not invent facts, commitments, prices or dates.
+
+## 7. Attachments
+
+- Automatically analyse relevant supported attachments when a new email is synchronised.
+- Detect filename, MIME type and size.
+- Use supported PDF, common image, DOCX and XLSX content as context for summaries, priority, reply drafts, follow-ups and questions.
+- Keep original attachments retrievable from the provider; do not automatically download and permanently store every attachment.
+- Provide **View Original Attachment** and Download actions separately from AI analysis.
+- PDFs open in an in-app viewer with page navigation and zoom; images in an image viewer; supported Office formats in an original-file preview where available.
+- Unsupported, encrypted, corrupted, truncated or oversized files must be identified clearly. Never claim to have analysed content that could not be read.
+- Treat attachments as untrusted data. Never execute files, macros or embedded programs.
+- Apply size/page/token limits and minimise temporary retention.
+- Attachment preview alone must not silently change mailbox read state.
+
+## 8. Follow-ups
+
+- Identify commitments, deadlines, promised replies, payment dates, missing documents and actions from new email.
+- Deduplicate follow-ups; update an existing task when the same commitment changes.
+- Provide active views for All, Action Required and Awaiting Response; make overdue status visible.
+- Each follow-up links to its source email/thread and shows task, responsible party, due/expected date and status.
+- Actions: Open Email Trail, Mark Complete, Edit, Snooze, Remove from Follow-ups.
+- **Remove from Follow-ups** removes only the tracking entry; never delete or alter the email, conversation or linked AI conversation.
+- Mark Complete removes the item immediately from active views; do not show a Completed tab/section. Keep minimal completion history internally.
+- AI can list, update, snooze, complete or remove follow-up tracking through clear commands.
+- A new email must update/close related follow-ups only when the new content clearly changes or fulfils the commitment.
+
+## 9. AI Assistant as an action-taking dashboard controller
+
+- Understand natural-language commands and execute supported dashboard actions through authenticated backend functions.
+- Examples: "Show this email as priority", "Remove this email from follow-up", "Get a task update", "Show my active tasks", "Prepare a reply", "Add a reminder".
+- Resolve "this email", "this conversation" and "this task" from current selection/context.
+- Low-risk, reversible actions may execute when target is unambiguous; show the result in the dashboard.
+- Ask a focused clarification when target or intent is ambiguous.
+- Do not claim success until backend/provider/Shortcut confirms completion.
+- Use idempotency controls and record action results/timestamps without storing unnecessary email content in logs.
+
+## 10. Automatic updates to linked AI conversations
+
+- User can link an email thread to a persistent, application-managed OpenAI conversation.
+- Store provider/account/thread identity to OpenAI Conversation ID mapping.
+- On arrival of a new email in that thread, detect the message, prevent duplicates, append it once to the linked AI conversation, refresh both summaries and reassess follow-ups.
+- The linked AI conversation should show source sender, account, received time and thread reference.
+- If no link exists, do not guess; ask the user to link or create a conversation.
+- User can disable automatic updates per thread/account.
+- Automatic context updates must not send email or perform consequential actions.
+- This is an Email Assistant-managed AI conversation, not arbitrary modification of a regular ChatGPT history chat.
+
+## 11. AI-assigned tasks and independent cloud execution — approved
+
+The AI Assistant supports multi-step tasks delegated in natural language, separate from email follow-up records.
+
+### Independent execution
+- Once accepted, a task must continue processing in the cloud even when the user closes the dashboard, closes the browser, switches devices, or leaves the related ChatGPT conversation.
+- The task must not depend on an open browser tab or the user's Mac being switched on.
+- Use durable database-backed job/task records and a cloud worker/queue. Do not rely on an in-memory process or client-side timers.
+- The worker orchestrates finite steps and calls the configured OpenAI model as needed; do not imply a model is continuously running in the background by itself.
+- Progress, current step, completed steps, pending steps, blockers, timestamps and errors must be saved server-side.
+- Tasks must survive worker restarts/deployments and resume safely from the last confirmed checkpoint.
+- Use idempotency keys, retry policies with backoff, bounded retries and failure states to prevent duplicate side effects.
+- Task states: Queued, In Progress, Waiting for User, Completed, Failed, and Cancelled.
+- If a task needs a user decision, missing information, account reconnection, or approval for a consequential operation, pause at **Waiting for User** and explain what is needed. Resume after the user responds.
+- User can inspect progress, request an update, pause or cancel eligible tasks from the dashboard.
+- Do not claim background progress unless a worker is actually executing and task state has been persisted.
+- No push/email/WhatsApp/desktop notifications; progress is visible only when the user visits the dashboard.
+
+### Task status updates
+When asked for a task update, report the real saved state, completed work, remaining work, latest checkpoint, blockers, and the next step. If the task is queued or waiting, say so plainly.
+
+### Safety boundary
+Automatic background execution does not grant permission to send emails, permanently delete messages, change blocking rules, or perform other consequential actions. Such steps pause for the required user approval. Apple Notes/Reminders tasks can be queued while devices are offline, but native actions execute only when an authorised Apple Shortcut device is available.
+
+## 12. Compose and send new email from AI Assistant chat
+
+- User can compose a new email in the AI Assistant.
+- ChatGPT can draft and revise it conversationally.
+- User can explicitly instruct the assistant to send the final email.
+- The From account must be selected through a dropdown unless explicitly named.
+- Validate exact recipients, sending account, subject, final body and attachments.
+- If required information is ambiguous, ask before sending.
+- An explicit send instruction is approval of the current final content and recipients; no second confirmation is required if everything is unambiguous.
+- If the assistant changes content after approval, seek approval for the new final version.
+- Report actual provider acceptance/submission separately from delivery.
+- Prevent duplicate sends and inspect provider state before retrying uncertain sends.
+
+## 13. Reply draft storage
+
+- Canonical AI reply drafts live in the Email Assistant PostgreSQL database.
+- Do not automatically create provider drafts in Gmail or iCloud.
+- User can edit, chat to revise, save, discard, or approve/send.
+- "Save to Email Drafts" is an optional, explicit action.
+- Preserve user edits and draft versions. Repeated syncs must not create duplicate drafts.
+
+## 14. Apple Notes and Reminders
+
+- Add Note must create a real native Apple Note.
+- Add Reminder must create a real native Apple Reminder.
+- Cloud backend parses and queues authenticated, device-bound Shortcut commands.
+- The dashboard shows Pending on Device until Shortcut completion is confirmed.
+- Only mark Completed after a confirmed Shortcut result.
+- Use device enrolment, short-lived authentication and idempotency to prevent unauthorised/duplicate actions.
+- If no device is available, queue the command; do not claim the native note/reminder has been created.
+
+## 15. Security and approvals
+
+- Authenticated private access, HTTPS, secure sessions and least privilege.
+- iCloud app-specific passwords and Google OAuth tokens stored only in secret storage.
+- No secrets in browser code or GitHub.
+- Database encryption, backups, audit trail and minimal logs.
+- Email/attachment content is untrusted input, not system instructions.
+- Delete moves to Trash after confirmation; permanent deletion requires a separate explicit confirmation.
+- Sending replies/forwards requires approval. A direct explicit send instruction authorises only that specific final new email.
+- Block action must disclose provider-level vs application-level scope.
+- No proactive notifications of any kind.
