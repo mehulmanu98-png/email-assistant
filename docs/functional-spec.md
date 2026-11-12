@@ -349,3 +349,17 @@ This is an approved capability in addition to replying to an existing message.
 
 - The direct-send behaviour is guaranteed only within the Email Assistant chat/application when its authenticated backend send tool is available.
 - Sending from an ordinary ChatGPT conversation outside the Email Assistant requires a supported ChatGPT App/MCP integration and account/connector permissions. Do not promise that the external backend can silently send from every regular ChatGPT chat.
+
+
+## 20. View original attachment — explicit required action
+
+- Every email attachment must have a clearly visible **View Original Attachment** action wherever preview is supported.
+- For PDFs, open the original PDF in an in-app document viewer or a new secure viewer panel, preserving the original pages and layout.
+- For images, display the original image at a readable size with zoom where practical.
+- For supported Office documents, provide an original-file preview where technically supported; otherwise provide a clearly labelled download/open-original action.
+- The original attachment must remain available separately from extracted text, OCR output, AI summaries, or converted previews.
+- Do not substitute a text extraction or AI-generated summary when the user selects View Original Attachment.
+- The viewer must identify the source email/thread and filename, and provide a way to return to the email.
+- Opening an attachment must not mark the email as read unless the user has also opened the email detail and the provider read-state rule applies; attachment preview alone should not silently modify other mailbox state.
+- Use authenticated, time-limited access to original attachment bytes. Do not expose permanent public attachment URLs.
+- If the original file cannot be retrieved or previewed, explain the reason and offer a safe download/retry option when available.
