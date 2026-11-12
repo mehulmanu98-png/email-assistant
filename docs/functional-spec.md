@@ -375,3 +375,10 @@ The user's manual priority override continues to take precedence over all automa
 - A Target deadline alone must never raise a task to Urgent. Urgent may still apply because of its base priority, a manual user assignment, or a separately supported urgent business risk.
 
 When a deadline is changed or its type is changed, recalculate effective priority from the base priority and the applicable rules. Do not retain stale escalation. Deadline type does not bypass scheduled-start times, dependencies, the three-task concurrency limit, or approval gates for consequential actions.
+
+
+## 29. Recurring AI tasks — excluded from initial scope
+
+- The initial version will not support recurring AI tasks or automatic creation of repeated task instances on a schedule.
+- Users may still create individual tasks and use the approved one-time scheduled start and deadline features.
+- Do not add recurring-task controls, recurrence rules, or automatic repeat behaviour unless the user explicitly requests this in a future scope decision.
