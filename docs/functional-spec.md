@@ -324,3 +324,23 @@ Every delegated AI task must have one of four priority levels:
 - Automatic task start does not grant blanket permission for consequential external actions. Existing approval requirements still apply to actions such as sending an email, permanently deleting data, or other gated actions unless the user has explicitly authorised that specific action.
 - Scheduled task execution produces no notifications.
 - The dashboard must show the scheduled start time and whether the task is waiting for its schedule, waiting for a dependency, queued for capacity, or running.
+
+
+## 27. Automatic deadline-based priority escalation — approved
+
+For tasks whose priority has not been manually set by the user, the system automatically raises the effective priority as the deadline approaches:
+
+- **More than 72 hours remaining:** retain the task's normal AI/default priority.
+- **72 hours or less remaining:** raise effective priority to at least **High**.
+- **24 hours or less remaining:** raise effective priority to **Urgent**.
+- **Deadline reached or overdue:** keep effective priority at **Urgent** until the task is completed, cancelled, or its deadline is changed.
+
+### Safeguards and recalculation
+- A priority explicitly set by the user is a manual override and always takes precedence over automatic deadline escalation.
+- The user can restore automatic priority management by explicitly resetting the task priority to Automatic.
+- Store the task's underlying AI/default priority separately from its deadline-adjusted effective priority. When a deadline is moved farther away, recalculate the effective priority from the underlying priority and the new remaining time; do not leave a stale escalation in place.
+- If no reliable deadline exists, do not escalate based on an invented date.
+- Deadline escalation does not bypass dependencies, the three-active-task limit, scheduled start times, or approval gates for consequential actions.
+- The scheduler uses the effective priority when ordering eligible queued tasks. Running tasks are not pre-empted.
+- Show the deadline, remaining time, effective priority and a clear reason such as "Raised to High — deadline within 72 hours" in task details.
+- Use the user's configured timezone for deadline display and interpretation; default timezone is Asia/Kolkata (IST).
