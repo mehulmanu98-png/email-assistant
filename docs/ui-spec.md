@@ -273,3 +273,13 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - Manual sync must trigger the same safe, idempotent processing pipeline as scheduled reviews.
 - Syncing must not send notifications.
 - Accounts & Settings must also retain a per-account Sync Now action.
+
+
+## 14. Initial email synchronisation — approved preference
+
+- On first connection of each iCloud or Gmail account, initially import the most recent **90 days** of email.
+- Show initial import progress and account-specific status in Accounts & Settings.
+- Clearly show the date range being imported and whether the initial import is still running or has completed.
+- Older messages are not bulk-imported during initial setup. When the user searches for or opens an older message/thread, the application may retrieve the required older data on demand from the relevant provider, subject to provider search/history access.
+- After the initial import, normal incremental synchronisation continues from the saved sync cursor/history and includes new messages and supported mailbox state changes.
+- The 90-day initial import preference applies independently to each newly connected email account.
