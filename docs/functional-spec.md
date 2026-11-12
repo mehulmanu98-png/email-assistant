@@ -402,3 +402,30 @@ This is an approved capability in addition to replying to an existing message.
 - If the user says only "send it" and the sending account has not been explicitly selected for that message, ask them to choose the account before sending.
 - Display the chosen From address and final recipients before execution. The explicit instruction to send the final message remains the approval to send, provided the account and recipients are unambiguous.
 - Existing replies and forwards should default to the source account of the original email/conversation, while allowing the user to change the sending account before sending.
+
+
+## 23. Sending-account dropdown and strict reply account matching — approved clarification
+
+This section clarifies and takes precedence over any earlier wording that suggested changing the sending account for replies or forwards.
+
+### New outbound email
+- Show a **From** dropdown containing all connected and authorised sending accounts (for example, the user's iCloud and Gmail addresses).
+- Do not select a default account for a newly composed email.
+- The user must select the sending account from the dropdown before sending, unless they explicitly named the account in their natural-language instruction.
+- The selected From address must remain visible in the final send review.
+
+### Reply and Reply All
+- A reply or Reply All **must be sent from the exact email account/address that received the original email**.
+- Select the original receiving account automatically and do not allow the sending account to be changed for that reply.
+- Display the From address in the reply workspace as a read-only field or locked dropdown, so the user can verify which account will be used.
+- If the original receiving account has been disconnected, lost authorisation, or cannot send, do not silently use another account. Explain the issue and ask the user to reconnect the original account before proceeding.
+- For a conversation with messages across multiple accounts, the reply must be tied to the specific selected source message and use that message's receiving account. Do not infer the sending account from another copy or a visually grouped duplicate.
+
+### Forward
+- By default, forward from the same account in which the selected source email was received.
+- Display this account in the From field. If the user wishes to forward from another account, require an explicit account selection in the forward composer and make the change visible before approval.
+
+### Priority of rules
+- New outbound email: user selects account through the From dropdown.
+- Reply / Reply All: strictly use the account that received the selected original message.
+- Forward: default to the account that received the selected original message; allow explicit change in the forward composer.
