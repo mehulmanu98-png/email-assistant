@@ -297,3 +297,13 @@ Default new tasks to `normal`.
 - Reordering applies to queued tasks only; do not pre-empt active work in the initial implementation.
 - Tasks in Waiting for User do not consume a worker slot.
 - Display the current priority, source, and reason in the dashboard when available.
+
+
+## 13. Scheduled task start — approved
+
+- Persist an optional `scheduled_start_at` timestamp for delegated AI tasks.
+- A scheduler/worker marks a task eligible once its scheduled start time is reached; do not require a second user approval to begin the already-delegated task.
+- Eligibility remains subject to dependency completion, worker capacity (global maximum 3), and the existing priority/FIFO queue policy.
+- If capacity is unavailable at the scheduled time, retain the task in the durable queue; start it when a slot becomes available according to queue ordering.
+- Scheduled-start permission is distinct from approval for consequential actions. Existing action-level approval gates remain in force.
+- Record the scheduled time and actual start time for auditability. No notifications are emitted.
