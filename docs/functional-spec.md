@@ -164,14 +164,15 @@ For each new incoming email:
 
 ## 10. Automatic updates to linked AI conversations
 
-- User can link an email thread to a persistent, application-managed OpenAI conversation.
-- Store provider/account/thread identity to OpenAI Conversation ID mapping.
-- On arrival of a new email in that thread, detect the message, prevent duplicates, append it once to the linked AI conversation, refresh both summaries and reassess follow-ups.
+- User can link an email thread to a persistent, application-managed Email Assistant AI conversation.
+- Store provider/account/thread identity to the Email Assistant conversation ID mapping in the application's own database.
+- On arrival of a new email in that thread, detect the message, prevent duplicates, append it once to the linked application-managed conversation, refresh both summaries and reassess follow-ups.
+- Supply the required conversation history/context to the authorised SIWC model request when a response is needed; do not depend on paid OpenAI Conversation APIs or a native ChatGPT conversation ID.
 - The linked AI conversation should show source sender, account, received time and thread reference.
 - If no link exists, do not guess; ask the user to link or create a conversation.
 - User can disable automatic updates per thread/account.
 - Automatic context updates must not send email or perform consequential actions.
-- This is an Email Assistant-managed AI conversation, not arbitrary modification of a regular ChatGPT history chat.
+- This is an Email Assistant-managed conversation, not arbitrary modification of a regular ChatGPT history chat or access to ChatGPT memories.
 
 ## 11. AI-assigned tasks and independent cloud execution — approved
 
