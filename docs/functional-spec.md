@@ -382,3 +382,43 @@ When a deadline is changed or its type is changed, recalculate effective priorit
 - The initial version will not support recurring AI tasks or automatic creation of repeated task instances on a schedule.
 - Users may still create individual tasks and use the approved one-time scheduled start and deadline features.
 - Do not add recurring-task controls, recurrence rules, or automatic repeat behaviour unless the user explicitly requests this in a future scope decision.
+
+
+## 30. ChatGPT-like AI, zero-additional-cost and public-source decisions — approved direction
+
+### Conversational AI experience
+- The AI Assistant should provide a natural, capable, multi-turn conversational experience similar in interaction style to ChatGPT: understand context, answer questions thoughtfully, reason through work, explain findings, revise drafts, and carry out authorised tasks.
+- Use persistent Email Assistant-managed conversations and memory/context needed for this application.
+- Do not claim that the app has access to the user's ordinary ChatGPT conversation history, ChatGPT memories, or all ChatGPT product features. Sign in with ChatGPT and ChatGPT plan usage do not grant those permissions by themselves.
+- Automatically select a suitable model from those actually made available through the approved ChatGPT-plan integration. Do not promise that the exact same model or every capability available in ChatGPT itself is available through the integration.
+
+### Preferred AI integration — Sign in with ChatGPT (SIWC)
+- First investigate and implement OpenAI's supported Sign in with ChatGPT / ChatGPT plan usage path for an open-source personal application, using the current official developer SDK and documentation.
+- The user has ChatGPT Go. Verify actual account, plan, app-type and usage eligibility during implementation; do not assume access is guaranteed merely because the source is public.
+- Do not request or store the user's ChatGPT password, browser cookies, or session cookies. Use only OpenAI's supported authorization flow.
+- ChatGPT plan usage is optional and must be separately authorised by the user. Obtain explicit consent before enabling any scheduled or other background AI processing.
+- Use the connected plan only for this Email Assistant and only for the authenticated user's own activity and expressly authorised background processing. Do not expose general-purpose model access to other users or applications.
+- SIWC does not grant access to normal ChatGPT conversations or memories. The Email Assistant maintains its own separate conversations.
+- Follow the current SIWC terms and implementation requirements for token handling. Do not persist SIWC authentication tokens in a third-party managed secret store or other remote service unless OpenAI's current rules explicitly permit the exact self-hosted deployment. Validate the documented self-hosted VM approach and current terms before enabling cloud background inference.
+- If the required remote/self-hosted deployment is not eligible or cannot be implemented compliantly, stop and explain the limitation. Do not bypass the restriction.
+
+### Strict zero-additional-cost policy
+- Target additional AI/API spend: **₹0**. Do not configure OpenAI API billing as a fallback.
+- Do not enable ChatGPT credits, automatic credit purchases, paid model fallbacks, paid upgrades, or paid app features. Do not make purchases or start paid subscriptions.
+- If included ChatGPT plan usage is unavailable, exhausted, or disabled, pause AI requests and leave eligible work queued/Waiting for User with a clear explanation. Resume only when the user-authorised included usage is available again.
+- Target hosting, database and other infrastructure spend: **₹0**. Use free tiers only where they genuinely support the required workload and security.
+- Free-tier limitations, including sleep, quotas, storage limits, retention limits, or lack of continuous worker availability, must be disclosed. Never claim reliable 24/7 processing unless the chosen free infrastructure demonstrably supports it.
+- If no compliant free infrastructure can meet a required feature, disclose the exact limitation and ask the user before changing the architecture or incurring any cost. Paid resources must remain disabled unless the user separately approves them.
+
+### Public source code; private service and personal data
+- The user approves publishing the Email Assistant's application source code publicly as an open-source project, after a pre-publication security and licensing review.
+- Public source publication does **not** mean the running dashboard, deployment, backend endpoints, database, mailboxes, account identifiers, email content, attachments, drafts, conversations, logs, secrets or credentials become public.
+- The deployed service remains private, single-user and authenticated. No public registration or multi-user use in the initial release.
+- Before making the repository public, inspect the complete Git history and all files for credentials, tokens, private URLs, account identifiers, personal data, logs, environment files, backups and other confidential material. Remove secrets from history where necessary; rotate any credential that may have been exposed.
+- Do not publish the repository until the security audit, a compatible open-source licence selection, and review of all third-party/SIWC SDK licence obligations are complete. Do not copy third-party implementation code without checking its licence.
+
+### Security baseline
+- Treat security as a primary product requirement, not an optional enhancement.
+- Use private single-user access, strong authentication, least privilege, secure sessions, HTTPS, encryption in transit and at rest, server-side provider credential handling, audit events, safe email/attachment rendering, and no secrets in source control.
+- SIWC authorisation must use the official flow and the narrow permissions needed. Keep the user able to review, limit and revoke the app's plan usage.
+- Ask for explicit consent for background AI processing; provide a clear way to disable it.
