@@ -346,3 +346,18 @@ Use inline rows/cards with subtle separators, clear connection states, and conci
 - Waiting for User tasks are clearly distinguished and do not count as occupying an active execution slot.
 - The UI must not promise that a queued task has started until a worker claims it.
 - No notifications are sent when tasks start or finish.
+
+
+## 21. AI task priority display and controls — approved
+
+- Every AI-assigned task row displays one priority label: Urgent, High, Normal or Low.
+- New tasks default to Normal unless an explicit user priority or justified AI recommendation is present.
+- Provide a task detail control to change priority.
+- The AI Assistant also supports natural-language priority changes, for example:
+  - "Make Tony's quotation comparison urgent."
+  - "Set the supplier research task to High."
+  - "Lower this task to Low."
+- Show a short explanation when the AI automatically assigns Urgent or High.
+- Distinguish user-set priority from AI-recommended priority where useful.
+- The task panel should show active slot usage (maximum 3), queued tasks and their priority-aware ordering.
+- Priority changes reorder queued tasks only. Never imply that an already-running task was interrupted.
