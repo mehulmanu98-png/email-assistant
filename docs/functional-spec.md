@@ -392,3 +392,13 @@ This is an approved capability in addition to replying to an existing message.
 - If the user explicitly chooses **Save to Email Drafts**, the application may copy/synchronise the current draft into the relevant provider's Gmail or iCloud Drafts folder. This is a separate, explicit action and must clearly identify the destination account.
 - Editing an internal draft after it has been copied to a provider Drafts folder must not silently overwrite the provider draft unless the user has opted into that sync behaviour; show the two draft states and offer an explicit update action.
 - Do not create duplicate internal drafts on repeated synchronisation. Preserve user edits and maintain version history when AI revisions are requested.
+
+
+## 22. Sending account preference for new outbound emails — approved
+
+- For every new outbound email composed through the AI Assistant, ask the user which connected email account to send from (for example, iCloud or Gmail).
+- Do not assume a default sending account and do not silently infer the sending account from recipient domain, prior usage, or conversation context.
+- If the user's explicit instruction already identifies the sending account (for example, "send this through my iCloud account"), that instruction satisfies the account-selection step; do not ask again.
+- If the user says only "send it" and the sending account has not been explicitly selected for that message, ask them to choose the account before sending.
+- Display the chosen From address and final recipients before execution. The explicit instruction to send the final message remains the approval to send, provided the account and recipients are unambiguous.
+- Existing replies and forwards should default to the source account of the original email/conversation, while allowing the user to change the sending account before sending.
