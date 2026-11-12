@@ -207,3 +207,56 @@ Completed tasks should not dominate the active-task panel; they can be collapsed
 ### Approved design decision
 
 **Main Chat + Compact Side Task Panel** is the approved desktop layout. On mobile, the task panel collapses into a drawer or separate view.
+
+
+## 12. Accounts & Settings screen — approved design
+
+Keep Accounts & Settings as one clean page with four grouped sections. Avoid deep, nested settings navigation.
+
+### A. Email Accounts
+
+- List all connected iCloud Mail and Gmail accounts.
+- Show provider, email address, connection status, last successful sync, and any recent sync error.
+- Provide Add Account, Manage, Reconnect, Sync Now, and Disconnect actions as appropriate.
+- Support multiple accounts of each supported provider.
+- Disconnecting an account must not silently delete previously stored email history, thread summaries, AI conversations, or follow-ups.
+
+### B. Automatic Email Review
+
+- The review schedule is **editable**.
+- Default review times: 08:00, 12:00, and 17:00.
+- Default timezone: Asia/Kolkata.
+- User can add, edit, enable/disable, and remove review times.
+- User can change the timezone.
+- Provide a manual Sync Now action for each individual account and for all accounts.
+- Clearly display the next scheduled review and last successful review.
+- Changes to schedule must update the cloud scheduler, not merely the local browser.
+- No notification delivery is associated with scheduled reviews.
+
+### C. AI Preferences
+
+- Show OpenAI / ChatGPT model connection status and configuration.
+- Show whether automatic linked AI conversation updates are enabled.
+- Allow automatic updates to be enabled or disabled per email thread and, where sensible, per account.
+- Clearly disclose the chosen AI integration and any separately billed API usage.
+
+### D. Security & Privacy
+
+- Account security and sign-in methods.
+- Authorised Mac/iPhone devices for Apple Shortcuts.
+- Connected service permissions and account connections.
+- Activity log and synchronisation history.
+- Credential and token management must remain server-side; never expose secrets in the browser.
+
+### Notifications
+
+- Notifications remain disabled. Do not add push, email, WhatsApp, SMS, desktop, or other proactive notification settings or delivery features.
+
+### Approved screen structure
+
+1. Email Accounts
+2. Automatic Email Review
+3. AI Preferences
+4. Security & Privacy
+
+Use inline rows/cards with subtle separators, clear connection states, and concise action controls.
