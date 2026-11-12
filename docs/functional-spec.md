@@ -321,3 +321,31 @@ This is a required two-way read-state behaviour.
 - On later incoming messages in the same conversation, prepare a draft for the new message and preserve any earlier user-edited drafts rather than overwriting them.
 - Draft creation must be idempotent: repeated syncs must not create duplicate draft records for the same incoming message and drafting version.
 - Keep provider-specific draft saving separate from the internal AI draft. The AI draft is internal until the user explicitly chooses to save it to iCloud/Gmail Drafts or send it after approval.
+
+
+## 18. Compose and send a new email directly from the AI Assistant chat
+
+This is an approved capability in addition to replying to an existing message.
+
+- The user can write or dictate a completely new email in the Email Assistant's ChatGPT-style AI conversation.
+- The user can ask ChatGPT to draft, revise, shorten, expand, translate, or change the tone of the new email.
+- The user can then explicitly instruct the assistant to send it, for example: "Send this email to tony@example.com from my iCloud account."
+- A clear, explicit user instruction to send the current final email is the required approval to send. Do not require a second confirmation modal or make the user copy the message into a separate compose screen when all details are unambiguous.
+- Before sending, the backend must resolve and validate:
+  - Exact To recipients (and CC/BCC if specified).
+  - The sending email account/provider.
+  - Subject.
+  - Final body content and any attachments.
+- If the recipient, sender account, subject/body, or attachment intent is ambiguous or missing, ask the user a focused clarification before sending. Do not guess recipients or the sending account.
+- If the AI revises the email after the user's send instruction, the revised content is not covered by the earlier approval; ask the user to approve the changed final version.
+- Once all required details are known and the user has explicitly instructed sending, send directly through the chosen iCloud or Gmail account using the provider's supported send operation.
+- Return the provider's actual send result. Distinguish accepted/submitted from delivered; do not claim delivery solely because the provider accepted the request.
+- Record the sending account, recipients, subject, timestamp, provider result and message identifier in the activity history, while avoiding unnecessary body content in logs.
+- Prevent accidental duplicate sends. If the provider response is uncertain, inspect the provider's Sent folder/message state before any retry.
+- This capability is for new outbound emails as well as the existing approval-gated reply and forward flows. Reply All remains the default for replies; a new email has explicitly chosen recipients.
+- The user's direct send instruction is a meaningful approval event. It does not authorise sending other drafts or future messages.
+
+### ChatGPT product boundary
+
+- The direct-send behaviour is guaranteed only within the Email Assistant chat/application when its authenticated backend send tool is available.
+- Sending from an ordinary ChatGPT conversation outside the Email Assistant requires a supported ChatGPT App/MCP integration and account/connector permissions. Do not promise that the external backend can silently send from every regular ChatGPT chat.
