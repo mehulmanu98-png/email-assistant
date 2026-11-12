@@ -286,3 +286,30 @@ Queued tasks are selected in priority order: Urgent, High, Normal, Low. Within t
 - Each active task/step must use durable checkpoints, idempotency keys, bounded retries and worker leases/heartbeats. A worker restart must not create duplicate work or side effects.
 - The dashboard must show queued/running task counts and which tasks are occupying the three active slots. It must not display fabricated percentage progress.
 - No proactive notifications are sent when tasks start, finish, fail, or wait for input.
+
+
+## 25. AI task priority levels — approved
+
+Every delegated AI task must have one of four priority levels:
+
+1. **Urgent** — time-critical work, imminent deadlines, critical business interruption, or a task the user explicitly identifies as urgent.
+2. **High** — important business work or a task with a near-term deadline or significant consequence, but not requiring immediate urgent handling.
+3. **Normal** — default priority for ordinary delegated work when there is no clear urgency.
+4. **Low** — non-urgent, optional, exploratory, or work that can safely wait.
+
+### Assignment and override rules
+- New delegated tasks default to **Normal** unless the user explicitly assigns a priority or the assistant has clear evidence to recommend another level.
+- The AI may recommend a priority based on the task description, due date and business impact. If it assigns Urgent or High automatically, it must store a short reason visible to the user.
+- The user may assign or change priority at any time using the task controls or natural-language instructions such as "Make Tony's quotation comparison urgent", "Lower the market research task to Low", or "Set this task to High".
+- A direct user-assigned priority takes precedence over later AI reassessment until the user changes or resets it.
+- Task priority is separate from email priority. Marking an email as Priority does not automatically make an AI task Urgent; the assistant may recommend a task priority based on its own deadline/impact assessment.
+- If the task has no clear due date or business impact, do not invent one to justify a higher priority.
+
+### Queue order and execution
+- Select eligible queued tasks by priority in this order: Urgent, High, Normal, Low.
+- Within the same priority, use FIFO order based on queued time.
+- Dependencies must be satisfied before a task is eligible, regardless of priority.
+- The maximum of three independent active tasks remains in force.
+- A priority change reorders queued tasks but does not pre-empt an already running task.
+- Waiting for User, Completed, Failed and Cancelled tasks do not occupy active execution slots.
+- Show the priority and any AI-assigned reason in the task panel/details.
