@@ -239,3 +239,32 @@ Automatic background execution does not grant permission to send emails, permane
 - Sending replies/forwards requires approval. A direct explicit send instruction authorises only that specific final new email.
 - Block action must disclose provider-level vs application-level scope.
 - No proactive notifications of any kind.
+
+
+## 24. AI task scheduling, priority and limited parallel execution — approved
+
+### Concurrency policy
+- The AI Assistant may execute **up to three independent delegated tasks simultaneously** for this workspace.
+- Three is the maximum, not a target. It may run fewer tasks when there are fewer independent tasks, provider limits, rate limits, or worker capacity constraints.
+- Tasks with dependencies must run in the correct sequence. Do not start a dependent task until its prerequisite is complete.
+- Independent tasks can run in parallel while respecting the maximum of three active tasks.
+- Tasks in **Waiting for User**, user-paused tasks, and tasks waiting for an Apple device to execute a native Shortcut do not consume one of the three active AI task slots.
+- The limit must be enforced server-side in the durable scheduler, not merely in the dashboard.
+
+### Queue priorities
+Use four priority levels:
+- **Urgent** — critical or time-sensitive work.
+- **High** — important business work.
+- **Normal** — standard assignments.
+- **Low** — non-urgent work.
+
+The user and AI Assistant can set or change a task's priority. The AI may recommend a priority based on deadlines and importance, but must show the reason. User-set priority takes precedence over AI recommendations until the user changes or resets it.
+
+Queued tasks are selected in priority order: Urgent, High, Normal, Low. Within the same priority, use first-in-first-out ordering unless an explicit due-date policy is configured. A higher-priority queued task may move ahead of lower-priority queued tasks, but must not abruptly interrupt a running operation. Any pre-emption must occur only at a safe, persisted checkpoint.
+
+### User controls and status
+- User can ask: "Make this urgent", "Lower the priority", "Show high-priority tasks", or "What is next in the queue?"
+- Show priority, queue status, current step, dependency state and latest persisted progress in the AI Assistant task panel.
+- Respect provider/API rate limits and use bounded retries/backoff. Do not exceed the three-task limit to speed up work.
+- The backend must enforce a configurable concurrency limit, with **3** as the approved initial setting.
+- No proactive notifications when task priority or queue state changes.
