@@ -1,72 +1,71 @@
 # Delivery checklist — Email Assistant
 
-Status is deliberately conservative. "Built" means code exists in this repository; it does not mean a live provider, deployment or full production test has passed.
+This status is intentionally conservative. **Built** means code is present and automated checks cover the feature where appropriate. OAuth approval, provider behaviour and real-world delivery still require testing with a test mailbox.
 
 ## Backend
 
 | Requirement | Status | Notes |
 |---|---|---|
-| FastAPI API and health endpoint | Built | Containerised. |
-| PostgreSQL persistence | Built | SQLAlchemy models and Docker volume. |
-| First-run single-user bootstrap | Built | Environment variables. |
-| Password hashing and HTTP-only session cookie | Built | PBKDF2-HMAC-SHA256 and signed cookie. |
-| Encrypted iCloud app-specific password field | Built | Fernet-derived key; dedicated stable seed required. |
-| Multiple email account records | Partial | iCloud starter; Gmail OAuth not built. |
-| iCloud 90-day initial IMAP import | Partial | Inbox only, capped at 500 messages/run. |
-| Gmail OAuth and incremental history sync | Not built | Google OAuth client and adapter required. |
-| Scheduled 08:00, 12:00, 17:00 cloud review | Not built | Worker currently processes queued manual iCloud syncs. |
-| Inbox/message records and search | Built | Database search. |
-| Provider-confirmed read/unread write-back | Not built | Current read state is local only. |
-| Provider-side move to Trash | Not built | Safely returns 501. |
-| Attachment extraction and original viewer/download | Not built | Not wired. |
-| Internal reply draft create/edit | Partial | Basic database storage. |
-| Reply All, source From lock, approval snapshot and idempotent send | Not built | Sending is disabled. |
-| Forward composer and sending | Not built | Not wired. |
-| Provider/app-level sender blocking | Not built | Not wired. |
-| Follow-up list/create/complete/remove | Partial | No AI extraction, edit or snooze. |
-| Task record and four priority levels | Partial | Persistence and manual priority endpoint. |
-| Hard/Target deadline escalation | Built | Policy function and unit tests. |
-| Scheduled task start, dependency graph and three-slot worker queue | Not built | Schedule field exists; scheduler/executor absent. |
-| Durable AI task executor/checkpoints/retries | Not built | Existing worker handles sync only. |
-| Application-managed AI conversation storage | Built | Database history. |
-| Official ChatGPT-plan/SIWC integration | Not built | Account/deployment eligibility must be checked; no API-billing fallback. |
-| Apple Notes/Reminders Shortcut bridge | Not built | Requires device bridge and real-device tests. |
-| Audit log, rate limits, migrations, backup/restore test | Not built | Required before production. |
+| FastAPI service, health endpoint and account-scoped routes | Built | |
+| PostgreSQL persistence and additive draft-send-state upgrade | Built | Not a full Alembic migration framework. |
+| Single-user bootstrap, password hashing and signed HTTP-only session | Built | |
+| Encrypted provider credentials | Built | Fernet-derived field key; keep the generated key stable. |
+| iCloud IMAP initial Inbox import | Built | 90-day window, maximum 500 messages per sync; no full-folder sync. |
+| Gmail Google OAuth + PKCE + offline token refresh | Built | Requires Google Cloud OAuth Web client, consent and real-account verification. |
+| Gmail API Inbox incremental sync | Built | Inbox-only query; capped per run. |
+| Manual mailbox sync worker | Built | |
+| Scheduled mailbox sync | Built | Default 08:00, 12:00 and 17:00 IST. Mailbox sync only, no AI review. |
+| Unified Inbox records, account filtering and local search | Built | |
+| Provider-confirmed read state | Built | Gmail modify API and iCloud IMAP UID flags; real-account test required. |
+| Provider-side move to Trash | Built | Gmail Trash API; iCloud UID MOVE depends on server support; real-account test required. |
+| App-level sender block | Built | Hides matching sender in this application only, not at provider level. |
+| Internal reply drafts | Built | Database-backed, idempotent creation per source message. |
+| Reply All defaults, editable To/CC/BCC and locked source From | Built | Depends on recipient headers available from the provider. |
+| Explicit send approval, source-account enforcement and duplicate guard | Built | Gmail API / iCloud SMTP; uncertain outcome blocks retry. Verify with test mailboxes. |
+| Forward composer and forward action | Not built | |
+| Attachment download, viewer and content extraction | Not built | Only attachment presence is detected. |
+| AI mail/thread summaries, priority assessment and reply drafting | Not available | AI disabled; current Go plan is not eligible for official plan usage integration. |
+| Follow-up create, edit, snooze, complete and remove | Built | Manual entry only; no AI extraction. |
+| Task records, priority overrides and Hard/Target deadline rules | Built | Deadline policy unit tests included. |
+| Scheduled task execution, dependencies, leases/checkpoints and three-slot queue | Partial | Task records and scheduled-start field exist; task executor is not active. |
+| App-managed AI conversation persistence | Built | Stores user messages; no AI response generation. |
+| Official ChatGPT-plan/SIWC integration | Not available for current plan | No API-billing fallback or session-cookie workaround. |
+| Apple Notes/Reminders Shortcut bridge | Not built | Requires device bridge and real-device validation. |
+| Full audit trail, rate limiting, full migrations and backup/restore test | Not built | Required before remote production. |
 
 ## Frontend
 
 | Requirement | Status | Notes |
 |---|---|---|
-| Responsive React dashboard | Built | Vite + React. |
-| Four main navigation sections | Built | Inbox, Follow-ups, AI Assistant, Accounts & Settings. |
-| Login screen | Built | API-backed session. |
-| Inbox search/list/selected email detail | Built | Basic responsive layout. |
-| Current-message and whole-thread summary display | Partial | Displays fields; no AI generation. |
-| Original email view | Partial | Imported plain text only; not safe HTML rendering or complete source fidelity. |
-| Sync Now | Built | Queues manual sync. |
-| Original attachment viewer/download | Not built | Not available. |
-| Internal reply draft editor and save | Partial | Basic draft; no version history or full recipient controls. |
-| Send/forward/delete/block actions | Not built | Unsupported actions clearly report status. |
-| Follow-up list/complete/remove | Partial | Edit, snooze and email trail navigation not built. |
-| Persistent AI chat list and messages | Partial | Cannot produce model answers yet. |
-| Task panel and priority colour labels | Partial | Shows saved tasks and changes manual priority. |
-| Scheduled-start and complete deadline controls | Partial | Deadline entry exists; scheduled-start form and live status updates absent. |
-| Accounts/settings | Partial | iCloud form; Gmail OAuth, AI consent and schedule controls pending. |
-| Mobile layout | Built | Requires device QA. |
+| Responsive React dashboard and four sections | Built | Inbox, Follow-ups, AI Assistant, Accounts & Settings. |
+| Single-user login/session flow | Built | |
+| Inbox search, list and message detail | Built | |
+| Original email body display | Built | Shows safe text; does not execute message HTML. |
+| Manual Sync Now and per-account sync | Built | |
+| Add iCloud account | Built | Apple app-specific password. |
+| Gmail connect via Google OAuth redirect | Built | Requires OAuth client credentials in private .env. |
+| Internal reply draft editor | Built | To, CC, BCC, subject, body and locked From. |
+| Approve and send | Built | Confirmation and draft snapshot check. |
+| Move to Trash and app-only sender block | Built | Confirmation before provider action. |
+| Attachment viewing/downloading | Not built | |
+| Follow-up completion/removal | Built | Rich edit/snooze UI remains partial. |
+| Persistent app-managed chat list and local messages | Built | No model-generated responses. |
+| AI task list, priorities and deadlines | Built | Tasks are saved but not executed. |
+| Account list, status and disconnect | Built | |
+| Editable sync schedule in UI | Not built | Schedule is server environment configuration. |
+| Mobile layout | Built | Device QA remains necessary. |
 
-## Required steps before production
+## One-time setup and acceptance test
 
-1. Clone the repository and copy `.env.example` to `.env`.
-2. Set a unique bootstrap email/password, random JWT secret, encryption seed and database password. Never commit `.env`.
-3. Run locally with Docker Compose and complete the login/API smoke test.
-4. Run `cd backend && pytest` and `cd frontend && npm install && npm run build`.
-5. Use HTTPS before remote use. Keep PostgreSQL private; configure monitored backups and test restoration.
-6. Connect a test iCloud account with an Apple app-specific password. Do not use the normal Apple ID password.
-7. Implement Google OAuth before connecting Gmail.
-8. Implement and validate the official ChatGPT-plan/SIWC integration for this exact deployment and account. Obtain explicit consent for each background processing category. No paid API fallback is allowed.
-9. Finish provider state write-back, safe send/forward/delete/block, attachments, scheduled email review, durable AI task queue, dependency handling, Apple Shortcuts, audit logging, rate limiting and database migrations.
-10. Run security, integration and real-device tests before production.
+1. Install Docker Desktop and Docker Compose v2.
+2. If using Gmail, create a Google Cloud project, enable the Gmail API, configure the consent screen, create a Web application OAuth client, and register `http://localhost:8080/api/oauth/gmail/callback`. Keep its client ID and secret available for the setup script.
+3. Clone the repository and run `bash scripts/setup-local.sh`. Enter your dashboard login and, when prompted, the optional Google OAuth client ID and secret. If you do not configure Gmail, leave both blank.
+4. Connect a test iCloud mailbox with an Apple app-specific password and/or connect the test Gmail account through Google's consent screen.
+5. Test initial sync, manual sync, scheduled sync, read-state write-back, Trash and a reply to an address you control. Check the Sent folder after sending. Do not start with a primary business mailbox.
+6. Verify the latest GitHub Actions run is green. Automated CI cannot replace real Apple/Google account tests or iPhone/Mac device testing.
 
-## Release note
+## Not included in this release
 
-This is a runnable foundation, not the full production application described in the agreed specifications. The system does not fake AI answers, provider delivery, email deletion or Apple actions. Do not use it for live business mail until the outstanding safety-critical items are complete.
+AI email review and AI-generated summaries/replies/follow-ups/task execution, forwarded email, attachment content processing, Apple Notes/Reminders integration, editable in-app schedule, remote cloud deployment and production-grade audit/rate-limit/backup hardening remain outstanding.
+
+No notifications are configured.

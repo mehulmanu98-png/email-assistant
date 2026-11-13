@@ -12,7 +12,9 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r backend/requirements.txt
-      - run: pytest
+      - run: python -m compileall -q app
+        working-directory: backend
+      - run: pytest -q
         working-directory: backend
   frontend:
     runs-on: ubuntu-latest

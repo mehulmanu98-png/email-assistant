@@ -9,9 +9,9 @@ class LoginIn(BaseModel):
     password: str = Field(min_length=12, max_length=200)
 
 class AccountIn(BaseModel):
-    provider: Literal["icloud", "gmail"]
+    provider: Literal["icloud"]
     email: EmailStr
-    app_password: str | None = Field(default=None, min_length=8, max_length=200)
+    app_password: str = Field(min_length=8, max_length=200)
 
 class TaskIn(BaseModel):
     title: str = Field(min_length=1, max_length=500)
@@ -27,18 +27,30 @@ class TaskPriorityIn(BaseModel):
 
 class FollowUpIn(BaseModel):
     title: str = Field(min_length=1, max_length=500)
-    description: str = ""
-    owner: str = ""
+    description: str = Field(default="", max_length=10000)
+    owner: str = Field(default="", max_length=200)
     due_at: datetime | None = None
     message_id: int | None = None
     status: Literal["action_required", "awaiting_response"] = "action_required"
 
+class FollowUpPatchIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    description: str | None = Field(default=None, max_length=10000)
+    owner: str | None = Field(default=None, max_length=200)
+    due_at: datetime | None = None
+    status: Literal["action_required", "awaiting_response", "completed"] | None = None
+    snoozed_until: datetime | None = None
+
 class DraftIn(BaseModel):
-    to: list[EmailStr] = []
-    cc: list[EmailStr] = []
-    bcc: list[EmailStr] = []
-    subject: str = ""
+    to: list[EmailStr] = Field(default_factory=list)
+    cc: list[EmailStr] = Field(default_factory=list)
+    bcc: list[EmailStr] = Field(default_factory=list)
+    subject: str = Field(default="", max_length=998)
     body: str = Field(default="", max_length=100000)
+
+class SendApprovalIn(BaseModel):
+    confirm_send: bool
+    expected_updated_at: datetime
 
 class ConversationIn(BaseModel):
     title: str = Field(default="New conversation", max_length=500)

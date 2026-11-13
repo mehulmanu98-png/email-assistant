@@ -1,49 +1,61 @@
 # Email Assistant
 
-Private single-user email workspace for iCloud Mail and Gmail, with a responsive inbox, follow-ups and an AI task workspace.
+A private, single-user mail workspace for iCloud Mail and Gmail. It provides a responsive inbox, provider-backed read/Trash actions, saved Reply All drafts, explicit sending approval, follow-ups and task/conversation records.
 
-**Current release: runnable foundation, not production complete.** It includes a FastAPI backend, PostgreSQL models, React dashboard, authenticated sessions, encrypted iCloud credential storage, a limited IMAP import path, follow-up/task records and deadline-priority policy. Important integrations remain incomplete; see [CHECKLIST.md](CHECKLIST.md).
+**Release status:** usable mail-workspace release candidate, subject to one-time provider setup and real-mailbox testing. It is not yet the fully automated AI assistant in the agreed specification. AI summaries, AI-generated replies, automatic follow-up extraction and AI task execution are intentionally disabled.
 
-## Run locally
+## Start the app
 
-Requires Docker Desktop.
+Requires Docker Desktop with Docker Compose v2.
 
-1. Clone this public repository.
-2. From the repository root, run `bash scripts/setup-local.sh`.
-3. Enter your dashboard email and choose a password when prompted. The script generates the remaining secrets, creates a private `.env`, and runs Docker Compose.
-4. Open http://localhost:8080 and sign in with the email/password entered in the script.
-5. API health endpoint: http://localhost:8000/api/health
+1. Clone this repository.
+2. Configure Google OAuth first if you plan to connect Gmail. See below.
+3. From the repository root run `bash scripts/setup-local.sh`.
+4. Enter your dashboard email and a unique password. The script generates private secrets and starts the containers.
+5. Open http://localhost:8080 and sign in.
 
-The script refuses to overwrite an existing `.env`. Keep `.env` private and never commit it.
+The script creates a private `.env` file and refuses to overwrite an existing one. Never commit or share `.env`. API health is at http://localhost:8080/api/health. Stop with `docker compose down`; `docker compose down -v` deletes the database volume.
 
-Generate a Fernet key seed with:
-`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
-The application derives its Fernet key from the configured seed; keep it stable or encrypted account credentials cannot be decrypted.
+## Mailbox connections
 
-Stop with `docker compose down`. Data remains in the Docker volume. `docker compose down -v` deletes the database volume.
+### iCloud Mail
+Use an Apple app-specific password, not your normal Apple Account password. The app imports up to 500 messages from the last 90 days of Inbox per sync. It uses IMAP to import and mark messages read, moves supported messages to the provider's Trash, and sends replies through iCloud SMTP from the original source account.
 
-## Mail providers
+### Gmail
+Create a Google Cloud project, enable the Gmail API, configure the OAuth consent screen, and create an OAuth client ID of type **Web application**. Add this exact authorised redirect URI:
 
-- **iCloud:** Limited IMAP Inbox import using an Apple app-specific password. The worker attempts a 90-day window and imports up to 500 messages per run. Not full folder, thread or provider-state sync.
-- **Gmail:** Not available; Google OAuth must be implemented. Never enter a Google password.
-- Provider-confirmed read state, Trash, sending, forwarding, blocking and attachment processing are not implemented. Unsupported actions return a clear error rather than claiming success.
+`http://localhost:8080/api/oauth/gmail/callback`
+
+When you run the setup script, enter the client ID and client secret. The app redirects to Google for consent and never asks you to type your Google password into this app. The OAuth flow requests Gmail modify and send permissions, stores refresh credentials encrypted in the private database, and refreshes access tokens server-side.
+
+For a consent screen in **Testing** mode, add your Google account as a test user. Google may limit refresh-token lifetime for external apps in testing; complete the appropriate publishing/verification steps before relying on it long-term.
+
+## Mail synchronisation
+
+The worker syncs mail at 08:00, 12:00 and 17:00 Asia/Kolkata while the worker is running. These are mailbox synchronisation times only. They do not run AI review and do not send notifications. Sync Now queues a manual sync for all connected mailboxes; each account also has an individual sync action. Initial sync imports up to 90 days and 500 messages per account per run.
+
+## Actions and safeguards
+
+- Opening an email changes its read state only after the provider confirms the operation.
+- Move to Trash asks for confirmation and updates local state only after provider confirmation. Permanent deletion is not exposed.
+- Reply drafts default to Reply All recipients where provider headers expose them. The source From address is locked.
+- Sending requires a second confirmation and a check that the saved draft has not changed since it was displayed. A network failure can leave the outcome uncertain; the draft is locked against blind retries. Check the provider's Sent folder before taking further action.
+- Block in app hides future messages from a sender in this workspace only; it does not create a provider-level block.
+- Message HTML is not executed. Attachments are detected but are not downloaded, previewed or extracted in this release.
+- No proactive notifications are configured.
 
 ## AI and cost policy
 
-No OpenAI API key, paid inference or paid fallback is configured. The chat stores messages but does not generate AI answers. The official Sign in with ChatGPT plan-usage path must be implemented and eligibility verified for the user's account and exact deployment before AI can run. No zero-cost continuous hosting guarantee is made.
+The AI Assistant section stores app-managed conversations and tasks, but does not produce model answers. The current ChatGPT Go plan is not eligible for the official open-source ChatGPT plan-usage integration. The app does not attempt to reuse ChatGPT browser cookies, account sessions or private history, and does not enable OpenAI API billing or a paid fallback. AI review, summaries, reply generation, follow-up extraction and task execution therefore remain disabled.
 
-## Security
+## Security and deployment
 
-- Single-user bootstrap, password hashing and HTTP-only signed session cookie.
-- iCloud credential field encrypted at rest.
-- Use HTTPS for remote access, keep PostgreSQL private, configure backups and restrict access.
-- Public source code does not make runtime email, attachments, account credentials, database or deployment public.
+This release is intended for local testing. The repository contains source code only; mailbox credentials, messages and the PostgreSQL database stay in your private local runtime. The generated `.env` has restrictive file permissions. Do not expose the database port publicly. Remote use requires HTTPS, private networking, managed secrets, backups, restore testing, rate limits and a fuller security review. Docker Compose is not a zero-cost 24/7 cloud-hosting guarantee.
 
-## Specifications and status
+## Tests
 
-- [Functional specification](docs/functional-spec.md)
-- [System architecture](docs/architecture.md)
-- [UI specification](docs/ui-spec.md)
-- [Backend and frontend checklist](CHECKLIST.md)
+Backend: `cd backend && pytest -q`
 
-See the checklist for the implemented foundation versus required production work.
+Frontend: `cd frontend && npm install && npm run build`
+
+Specifications: [functional](docs/functional-spec.md), [architecture](docs/architecture.md), [UI](docs/ui-spec.md), [delivery checklist](CHECKLIST.md).
