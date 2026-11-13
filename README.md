@@ -9,12 +9,12 @@ Private single-user email workspace for iCloud Mail and Gmail, with a responsive
 Requires Docker Desktop.
 
 1. Clone this public repository.
-2. Copy `.env.example` to `.env`.
-3. Set unique `BOOTSTRAP_EMAIL`, `BOOTSTRAP_PASSWORD` (at least 12 characters), `JWT_SECRET` (at least 32 random characters), `FIELD_ENCRYPTION_KEY` and `POSTGRES_PASSWORD`.
-4. Keep `.env` private. Never commit it.
-5. Start using `docker compose up --build -d`.
-6. Open http://localhost:8080 and sign in using the bootstrap credentials.
-7. API health endpoint: http://localhost:8000/api/health
+2. From the repository root, run `bash scripts/setup-local.sh`.
+3. Enter your dashboard email and choose a password when prompted. The script generates the remaining secrets, creates a private `.env`, and runs Docker Compose.
+4. Open http://localhost:8080 and sign in with the email/password entered in the script.
+5. API health endpoint: http://localhost:8000/api/health
+
+The script refuses to overwrite an existing `.env`. Keep `.env` private and never commit it.
 
 Generate a Fernet key seed with:
 `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
