@@ -18,7 +18,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://emailassistant:${POSTGRES_PASSWORD:-change-me}@db:5432/emailassistant
-      FRONTEND_ORIGIN: http://localhost:8080
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
     depends_on:
       db:
         condition: service_healthy
@@ -38,7 +38,7 @@ services:
     depends_on:
       - api
     ports:
-      - "8080:80"
+      - "${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-8080}:80"
     restart: unless-stopped
 volumes:
   emailassistant_db:

@@ -45,27 +45,46 @@ def run_once():
         db.close()
 
 def schedule_due_syncs():
-    # This is mailbox synchronization only. It does not perform AI review or send notifications.
+    # Mailbox synchronisation only; AI review and notifications are deliberately disabled.
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    now = datetime.now(ZoneInfo(settings.timezone))
-    slots = [v.strip() for v in settings.auto_sync_times.split(",") if v.strip()]
-    if now.strftime("%H:%M") not in slots:
-        return
-    key = now.strftime("%Y-%m-%d-%H-%M")
+    from .models import UserSettings
     db = SessionLocal()
     try:
-        if db.scalar(select(ScheduleRun.id).where(ScheduleRun.run_key == key)):
-            return
-        db.add(ScheduleRun(run_key=key))
-        db.flush()
-        accounts = db.scalars(select(EmailAccount).where(EmailAccount.connection_status != "disconnected")).all()
-        for account in accounts:
-            db.add(SyncJob(user_id=account.user_id, account_id=account.id, status="queued",
-                           details="Scheduled mailbox sync (no AI processing)."))
+        user_rows = db.execute(
+            select(EmailAccount.user_id, UserSettings.sync_times, UserSettings.timezone)
+            .join(UserSettings, UserSettings.user_id == EmailAccount.user_id, isouter=True)
+            .where(EmailAccount.connection_status != "disconnected")
+            .distinct()
+        ).all()
+        grouped = {}
+        for user_id, times, timezone_name in user_rows:
+            grouped[user_id] = (
+                times or [v.strip() for v in settings.auto_sync_times.split(",") if v.strip()],
+                timezone_name or settings.timezone
+            )
+        for user_id, (times, timezone_name) in grouped.items():
+            try:
+                now = datetime.now(ZoneInfo(timezone_name))
+            except Exception:
+                log.warning("Invalid timezone for user %s; using configured default.", user_id)
+                now = datetime.now(ZoneInfo(settings.timezone))
+            if now.strftime("%H:%M") not in times:
+                continue
+            key = f"{user_id}:{now.strftime('%Y-%m-%d-%H-%M')}"
+            if db.scalar(select(ScheduleRun.id).where(ScheduleRun.run_key == key)):
+                continue
+            db.add(ScheduleRun(run_key=key))
+            accounts = db.scalars(select(EmailAccount).where(
+                EmailAccount.user_id == user_id,
+                EmailAccount.connection_status != "disconnected"
+            )).all()
+            for account in accounts:
+                db.add(SyncJob(
+                    user_id=user_id, account_id=account.id, status="queued",
+                    details="Scheduled mailbox sync (AI review disabled)."
+                ))
         db.commit()
-    except IntegrityError:
-        db.rollback()
     finally:
         db.close()
 

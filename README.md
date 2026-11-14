@@ -1,61 +1,71 @@
 # Email Assistant
 
-A private, single-user mail workspace for iCloud Mail and Gmail. It provides a responsive inbox, provider-backed read/Trash actions, saved Reply All drafts, explicit sending approval, follow-ups and task/conversation records.
+A private, single-user email workspace for iCloud Mail and Gmail. The application includes a React dashboard, FastAPI backend, PostgreSQL database and a separate durable mailbox-sync worker.
 
-**Release status:** usable mail-workspace release candidate, subject to one-time provider setup and real-mailbox testing. It is not yet the fully automated AI assistant in the agreed specification. AI summaries, AI-generated replies, automatic follow-up extraction and AI task execution are intentionally disabled.
+## Important: local run vs background run
 
-## Start the app
+The code in this repository is **not yet deployed to cloud hosting**. Running Docker Compose on your Mac is useful for testing, but closing or sleeping the Mac stops the local containers and scheduled worker.
+
+To run while your Mac is off, deploy the whole Docker Compose stack to an always-on cloud VM or equivalent container host: web frontend, API, PostgreSQL with persistent storage, and the worker. Put HTTPS in front of the web service (the Compose file binds it to localhost by default for a same-host TLS reverse proxy). The cloud host must keep the worker running and retain the database volume. A free plan that sleeps or pauses cannot guarantee scheduled sync. No hosting provider has been selected, no cloud deployment has been performed, and no mailbox credentials are stored in this public repository.
+
+## Current capabilities
+
+- Unified inbox storage for iCloud Mail and Gmail.
+- iCloud Mail via Apple app-specific password; Gmail via Google OAuth with PKCE and offline refresh credentials.
+- Initial 90-day Inbox import, incremental mailbox sync, and resumable 500-message batches.
+- Scheduled mailbox sync at **08:00, 11:00, 14:00 and 17:00 Asia/Kolkata** by default. These settings can be edited in the dashboard.
+- Manual Sync Now and per-account sync.
+- Provider-confirmed read-state changes and provider Trash operations.
+- Internal Reply All drafts with editable To/CC/BCC, locked From account, and explicit send confirmation.
+- App-only sender blocking, follow-ups and task/conversation records.
+- Raw email body hidden until the user chooses **Show original email**.
+- No proactive notifications.
+
+## What is not active
+
+AI email summaries, AI-generated replies, automatic follow-up extraction, AI task execution, attachment downloading/previewing and the Apple Notes/Reminders bridge are not active in this release. The AI features are deliberately disabled rather than returning invented content. There is no OpenAI API billing or paid fallback configured.
+
+## Local testing
 
 Requires Docker Desktop with Docker Compose v2.
 
 1. Clone this repository.
-2. Configure Google OAuth first if you plan to connect Gmail. See below.
-3. From the repository root run `bash scripts/setup-local.sh`.
-4. Enter your dashboard email and a unique password. The script generates private secrets and starts the containers.
-5. Open http://localhost:8080 and sign in.
+2. Run `bash scripts/setup-local.sh` from the repository root.
+3. Enter your dashboard email and a unique password. The script generates local secrets and starts the services.
+4. Open http://localhost:8080 and sign in.
+5. Add an iCloud account with an Apple app-specific password and/or connect Gmail through Google's consent screen.
 
-The script creates a private `.env` file and refuses to overwrite an existing one. Never commit or share `.env`. API health is at http://localhost:8080/api/health. Stop with `docker compose down`; `docker compose down -v` deletes the database volume.
+The setup script creates a private `.env` file with restrictive permissions and refuses to overwrite an existing one. Never commit or share `.env`. The database is private and is not exposed as a host port. `docker compose down` stops the services; `docker compose down -v` deletes the local database volume.
 
-## Mailbox connections
+## Gmail OAuth setup
 
-### iCloud Mail
-Use an Apple app-specific password, not your normal Apple Account password. The app imports up to 500 messages from the last 90 days of Inbox per sync. It uses IMAP to import and mark messages read, moves supported messages to the provider's Trash, and sends replies through iCloud SMTP from the original source account.
-
-### Gmail
-Create a Google Cloud project, enable the Gmail API, configure the OAuth consent screen, and create an OAuth client ID of type **Web application**. Add this exact authorised redirect URI:
+Create a Google Cloud project, enable the Gmail API, configure the OAuth consent screen and create an OAuth client of type **Web application**. Register the exact redirect URI:
 
 `http://localhost:8080/api/oauth/gmail/callback`
 
-When you run the setup script, enter the client ID and client secret. The app redirects to Google for consent and never asks you to type your Google password into this app. The OAuth flow requests Gmail modify and send permissions, stores refresh credentials encrypted in the private database, and refreshes access tokens server-side.
+Enter the client ID and secret in the local setup prompt. Google handles account selection and consent; never enter your Google password into this app. For a cloud deployment, change the redirect URI and `GOOGLE_REDIRECT_URI` to the HTTPS hostname and update `FRONTEND_ORIGIN` to the same origin.
 
-For a consent screen in **Testing** mode, add your Google account as a test user. Google may limit refresh-token lifetime for external apps in testing; complete the appropriate publishing/verification steps before relying on it long-term.
+## Cloud deployment requirements
 
-## Mail synchronisation
+For production, set `APP_ENV=production`, a long random `JWT_SECRET`, a stable private `FIELD_ENCRYPTION_KEY`, a strong database password and the correct HTTPS `FRONTEND_ORIGIN` and `GOOGLE_REDIRECT_URI`. Use a durable PostgreSQL volume, HTTPS reverse proxy, firewall, backups and restore testing. Do not expose PostgreSQL or the API directly to the public internet. The same encrypted credentials and database volume must persist across restarts. Never publish the `.env` file or database backups.
 
-The worker syncs mail at 08:00, 12:00 and 17:00 Asia/Kolkata while the worker is running. These are mailbox synchronisation times only. They do not run AI review and do not send notifications. Sync Now queues a manual sync for all connected mailboxes; each account also has an individual sync action. Initial sync imports up to 90 days and 500 messages per account per run.
+Cloud deployment still requires an account/host, domain or supported HTTPS URL, secure environment-variable entry and live iCloud/Gmail OAuth testing. These credentials and provider approvals cannot be safely guessed or fabricated.
 
-## Actions and safeguards
+## Safeguards and limitations
 
-- Opening an email changes its read state only after the provider confirms the operation.
-- Move to Trash asks for confirmation and updates local state only after provider confirmation. Permanent deletion is not exposed.
-- Reply drafts default to Reply All recipients where provider headers expose them. The source From address is locked.
-- Sending requires a second confirmation and a check that the saved draft has not changed since it was displayed. A network failure can leave the outcome uncertain; the draft is locked against blind retries. Check the provider's Sent folder before taking further action.
-- Block in app hides future messages from a sender in this workspace only; it does not create a provider-level block.
-- Message HTML is not executed. Attachments are detected but are not downloaded, previewed or extracted in this release.
-- No proactive notifications are configured.
+- Opening a message marks it read only after provider confirmation.
+- Trash is provider-side; permanent deletion is not exposed.
+- Reply From is fixed to the original receiving account.
+- Sending requires explicit approval and a draft-version check. If the provider's response is uncertain, the draft is locked against blind retry; check Sent first.
+- Blocking is app-only, not a provider-level block.
+- HTML is not executed. Attachments are detected but not downloaded or extracted.
+- Conversations and tasks are stored in this app and are separate from ChatGPT history.
+- The current ChatGPT Go plan is not eligible for the official open-source ChatGPT plan-usage route; no API key or paid fallback has been added.
 
-## AI and cost policy
-
-The AI Assistant section stores app-managed conversations and tasks, but does not produce model answers. The current ChatGPT Go plan is not eligible for the official open-source ChatGPT plan-usage integration. The app does not attempt to reuse ChatGPT browser cookies, account sessions or private history, and does not enable OpenAI API billing or a paid fallback. AI review, summaries, reply generation, follow-up extraction and task execution therefore remain disabled.
-
-## Security and deployment
-
-This release is intended for local testing. The repository contains source code only; mailbox credentials, messages and the PostgreSQL database stay in your private local runtime. The generated `.env` has restrictive file permissions. Do not expose the database port publicly. Remote use requires HTTPS, private networking, managed secrets, backups, restore testing, rate limits and a fuller security review. Docker Compose is not a zero-cost 24/7 cloud-hosting guarantee.
-
-## Tests
+## Checks
 
 Backend: `cd backend && pytest -q`
 
 Frontend: `cd frontend && npm install && npm run build`
 
-Specifications: [functional](docs/functional-spec.md), [architecture](docs/architecture.md), [UI](docs/ui-spec.md), [delivery checklist](CHECKLIST.md).
+The GitHub Actions workflow runs both checks on every push to `main`. Automated checks do not replace real mailbox, OAuth, delivery, backup or device testing.

@@ -22,6 +22,10 @@ class EmailAccount(Base):
     encrypted_secret: Mapped[str | None] = mapped_column(Text, nullable=True)
     connection_status: Mapped[str] = mapped_column(String(30), default="not_verified")
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    icloud_sync_uid_cursor: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    icloud_sync_since: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    gmail_sync_page_token: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gmail_sync_query: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     __table_args__ = (Index("ix_account_user_email", "user_id", "email", unique=True),)
 
@@ -135,3 +139,11 @@ class ScheduleRun(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     run_key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+class UserSettings(Base):
+    __tablename__ = "user_settings"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
+    sync_times: Mapped[list] = mapped_column(JSON, default=lambda: ["08:00", "11:00", "14:00", "17:00"])
+    timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

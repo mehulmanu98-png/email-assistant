@@ -16,7 +16,7 @@ from .config import settings
 from .db import get_db, init_db
 from .models import (
     User, EmailAccount, EmailMessage, ReplyDraft, FollowUp, AITask,
-    AIConversation, SyncJob, OAuthState, BlockedSender, utcnow
+    AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, utcnow
 )
 from .security import (
     hash_password, verify_password, create_access_token, current_user,
@@ -24,7 +24,7 @@ from .security import (
 )
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
-    DraftIn, SendApprovalIn, ConversationIn, MessageIn
+    DraftIn, SendApprovalIn, ConversationIn, MessageIn, UserSettingsPatchIn
 )
 from .policy import effective_priority
 from .providers import set_icloud_read, move_icloud_to_trash, send_icloud
@@ -103,6 +103,48 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
         "followups": count(FollowUp, FollowUp.user_id == user.id, FollowUp.status.in_(["action_required", "awaiting_response"])),
         "active_tasks": count(AITask, AITask.user_id == user.id, AITask.status.in_(["queued", "in_progress", "waiting_for_user"])),
         "ai_ready": False
+    }
+
+@app.get("/api/settings")
+def get_user_settings(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    item = db.scalar(select(UserSettings).where(UserSettings.user_id == user.id))
+    if not item:
+        item = UserSettings(
+            user_id=user.id,
+            sync_times=[v.strip() for v in settings.auto_sync_times.split(",") if v.strip()],
+            timezone=settings.timezone
+        )
+        db.add(item)
+        db.commit()
+        db.refresh(item)
+    return {
+        "sync_times": item.sync_times, "timezone": item.timezone,
+        "ai_processing_enabled": False, "notifications_enabled": False
+    }
+
+@app.patch("/api/settings")
+def update_user_settings(data: UserSettingsPatchIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    import re
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    times = sorted(set(data.sync_times))
+    if len(times) != len(data.sync_times) or any(
+        not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", value) for value in times
+    ):
+        raise HTTPException(422, "Enter unique 24-hour times in HH:MM format.")
+    try:
+        ZoneInfo(data.timezone)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(422, "Choose a valid IANA timezone.")
+    item = db.scalar(select(UserSettings).where(UserSettings.user_id == user.id))
+    if not item:
+        item = UserSettings(user_id=user.id)
+        db.add(item)
+    item.sync_times = times
+    item.timezone = data.timezone
+    db.commit()
+    return {
+        "sync_times": item.sync_times, "timezone": item.timezone,
+        "ai_processing_enabled": False, "notifications_enabled": False
     }
 
 @app.get("/api/accounts")

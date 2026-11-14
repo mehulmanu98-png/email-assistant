@@ -116,12 +116,19 @@ def gmail_request(db: Session, account: EmailAccount, method: str, path: str,
     return response.json() if response.content else {}
 
 def sync_gmail(db: Session, account: EmailAccount, limit: int = 500) -> int:
-    if account.last_sync_at:
-        after = int(account.last_sync_at.timestamp()) - 60
-        query = f"in:inbox after:{after}"
+    if account.gmail_sync_page_token and account.gmail_sync_query:
+        query = account.gmail_sync_query
+        page_token = account.gmail_sync_page_token
     else:
-        query = "in:inbox newer_than:90d"
-    page_token = None
+        if account.last_sync_at:
+            last = account.last_sync_at
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            after = int(last.timestamp()) - 60
+            query = f"in:inbox after:{after}"
+        else:
+            query = "in:inbox newer_than:90d"
+        page_token = None
     message_ids = []
     while len(message_ids) < limit:
         params = {"q": query, "maxResults": min(100, limit - len(message_ids))}
@@ -154,7 +161,13 @@ def sync_gmail(db: Session, account: EmailAccount, limit: int = 500) -> int:
             has_attachments=parsed["has_attachments"]
         ))
         imported += 1
-    account.last_sync_at = datetime.now(timezone.utc)
+    if page_token:
+        account.gmail_sync_query = query
+        account.gmail_sync_page_token = page_token
+    else:
+        account.gmail_sync_query = None
+        account.gmail_sync_page_token = None
+        account.last_sync_at = datetime.now(timezone.utc)
     account.connection_status = "connected"
     db.commit()
     return imported

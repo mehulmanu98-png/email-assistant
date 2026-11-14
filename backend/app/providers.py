@@ -53,36 +53,50 @@ def _connect(account: EmailAccount):
     return client, password
 
 def sync_icloud(db: Session, account: EmailAccount) -> int:
+    from .config import settings
     client, _ = _connect(account)
     try:
         status, _ = client.select("INBOX", readonly=True)
         if status != "OK":
             raise RuntimeError("iCloud Inbox could not be opened.")
-        since = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%d-%b-%Y")
-        status, data = client.search(None, "SINCE", since)
+        now = datetime.now(timezone.utc)
+        if account.icloud_sync_since:
+            since = account.icloud_sync_since
+        elif account.last_sync_at:
+            last = account.last_sync_at
+            if last.tzinfo is None:
+                last = last.replace(tzinfo=timezone.utc)
+            since = (last - timedelta(days=1)).strftime("%d-%b-%Y")
+        else:
+            since = (now - timedelta(days=settings.initial_sync_days)).strftime("%d-%b-%Y")
+        status, data = client.uid("SEARCH", None, "SINCE", since)
         if status != "OK":
             raise RuntimeError("iCloud Inbox search failed.")
-        identifiers = (data[0] or b"").split()[-500:]
+        identifiers = (data[0] or b"").split()
+        if account.icloud_sync_uid_cursor:
+            cursor = int(account.icloud_sync_uid_cursor)
+            identifiers = [uid for uid in identifiers if int(uid) > cursor]
+        batch = identifiers[:settings.max_messages_per_sync]
         imported = 0
-        for seq in identifiers:
-            status, payload = client.fetch(seq, "(BODY.PEEK[] FLAGS)")
+        for uid in batch:
+            status, payload = client.uid("FETCH", uid, "(BODY.PEEK[] FLAGS)")
             if status != "OK" or not payload or not isinstance(payload[0], tuple):
                 continue
             raw = payload[0][1]
             metadata = payload[0][0] if isinstance(payload[0][0], bytes) else str(payload[0][0]).encode()
             parsed = email.message_from_bytes(raw)
-            message_id = (parsed.get("Message-ID") or "").strip() or "icloud-seq-" + seq.decode(errors="ignore")
+            message_id = (parsed.get("Message-ID") or "").strip() or "icloud-uid-" + uid.decode(errors="ignore")
             if db.scalar(select(StoredMessage.id).where(
                 StoredMessage.account_id == account.id,
                 StoredMessage.provider_message_id == message_id
             )):
                 continue
             try:
-                received = email.utils.parsedate_to_datetime(parsed.get("Date")) if parsed.get("Date") else datetime.now(timezone.utc)
+                received = email.utils.parsedate_to_datetime(parsed.get("Date")) if parsed.get("Date") else now
                 if received.tzinfo is None:
                     received = received.replace(tzinfo=timezone.utc)
             except Exception:
-                received = datetime.now(timezone.utc)
+                received = now
             body = _plain_body(parsed)
             refs = parsed.get("References") or parsed.get("In-Reply-To") or message_id
             has_attachments = any(
@@ -92,13 +106,22 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
             db.add(StoredMessage(
                 user_id=account.user_id, account_id=account.id,
                 provider_message_id=message_id, thread_key=str(refs)[:500],
-                sender=decode_mime(parsed.get("From")), recipients=", ".join(v for v in [decode_mime(parsed.get("To")), decode_mime(parsed.get("Cc"))] if v),
+                sender=decode_mime(parsed.get("From")),
+                recipients=", ".join(v for v in [
+                    decode_mime(parsed.get("To")), decode_mime(parsed.get("Cc"))
+                ] if v),
                 subject=decode_mime(parsed.get("Subject")), received_at=received,
                 snippet=body[:240], body_text=body, is_read=(b"\\Seen" in metadata),
                 has_attachments=has_attachments
             ))
             imported += 1
-        account.last_sync_at = datetime.now(timezone.utc)
+        if len(identifiers) > len(batch) and batch:
+            account.icloud_sync_uid_cursor = batch[-1].decode(errors="ignore")
+            account.icloud_sync_since = since
+        else:
+            account.icloud_sync_uid_cursor = None
+            account.icloud_sync_since = None
+            account.last_sync_at = now
         account.connection_status = "connected"
         db.commit()
         return imported
@@ -109,6 +132,11 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
             pass
 
 def _find_icloud_uid(client, message_id: str) -> bytes:
+    if message_id.startswith("icloud-uid-"):
+        uid = message_id.removeprefix("icloud-uid-")
+        if uid.isdigit():
+            return uid.encode()
+        raise RuntimeError("The stored iCloud UID is invalid.")
     if message_id.startswith("icloud-seq-"):
         raise RuntimeError("This older imported message has no Message-ID for a safe provider action.")
     clean = message_id.replace('"', "")
@@ -182,7 +210,7 @@ def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[s
         message["Cc"] = ", ".join(cc)
     message["Subject"] = subject
     message["Message-ID"] = make_msgid()
-    if source_message and not source_message.provider_message_id.startswith("icloud-seq-"):
+    if source_message and not source_message.provider_message_id.startswith(("icloud-seq-", "icloud-uid-")):
         message["In-Reply-To"] = source_message.provider_message_id
         message["References"] = (source_message.thread_key + " " + source_message.provider_message_id).strip()
     message.set_content(body)

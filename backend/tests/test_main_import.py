@@ -5,3 +5,4 @@ def test_application_imports_and_exposes_core_routes():
     assert "/api/messages" in paths
     assert "/api/oauth/gmail/start" in paths
     assert "/api/drafts/{draft_id}/send" in paths
+    assert "/api/settings" in paths
