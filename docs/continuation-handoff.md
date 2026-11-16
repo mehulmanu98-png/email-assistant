@@ -57,15 +57,17 @@ The available extract records an earlier inbox schedule of 08:00, 12:00 and 17:0
 
 ## Important AI integration and licensing blocker
 
-OpenAI's current Help Center says ChatGPT Go, Plus and Pro users may use included plan usage in participating apps that support the feature; availability also depends on the app's own eligibility and approval.
+OpenAI's current Help Center says ChatGPT Go, Plus, Pro and Business users may use included plan usage in participating commercial apps that support it, subject to app eligibility and the user's separate authorization. This Email Assistant is not currently an approved participating app.
 
-However, the official open-source Sign in with ChatGPT DevKit is under a **Noncommercial License v1.0**. Its definition of Noncommercial Purpose excludes development, testing, distribution or operation by or for a business, employer or client in connection with their operations or commercial advantage, even where no fee is charged. This Email Assistant is intended to process business correspondence. Therefore:
+The Sign in with ChatGPT Terms effective 4 November 2026 state that persistent Authentication Tokens must be stored locally and under the user's control, not in a remote or managed environment (section 1). ChatGPT plan requests must come from the user's local runtime or a remote runtime that only the user controls, and background use requires express consent (section 3.1). The planned Cloud Run worker therefore cannot assume it may persist SIWC credentials in Neon or Google Secret Manager. Obtain written OpenAI clarification of the specific remote runtime and token-storage model before designing unattended AI processing.
+
+The official open-source Sign in with ChatGPT DevKit is also under a **Noncommercial License v1.0**. Its definition of Noncommercial Purpose excludes development, testing, distribution or operation by or for a business, employer or client in connection with their operations or commercial advantage, even where no fee is charged. This Email Assistant is intended to process business correspondence. Therefore:
 
 - Do not embed or deploy the official open-source DevKit for this business-use purpose.
 - Do not claim that the user's Go plan is categorically ineligible; that statement was corrected in the app.
-- The supported next path is to request OpenAI's commercial-integration approval and clarify whether this private, single-user app qualifies, what runtime/token-storage architecture is approved, and which plan-usage permissions are available.
-- Until approval is obtained, AI tasks must remain Waiting for User / blocked with a clear reason.
-- Do not store SIWC access or refresh credentials in Neon, Google Secret Manager, browser storage, source control, URLs or logs.
+- The supported next path is to request OpenAI's commercial-integration approval and obtain written confirmation that this single-user business-email app qualifies, which runtime model is approved, and how user-controlled token persistence can work with the laptop-off requirement.
+- Until approval and an architecture permitted by the current Terms are confirmed, AI tasks must remain Waiting for User / blocked with a clear reason.
+- Do not persist SIWC access or refresh credentials in Neon, Google Secret Manager, source control, URLs or logs. Do not assume a remote managed Cloud Run service may persist them; the Terms require persistent token storage to be local and user-controlled.
 - Do not work around the licence or hosted-app approval requirements by copying SDK code or moving protected credentials through an undocumented method.
 - No OpenAI API billing, credit usage or paid fallback may be enabled.
 
