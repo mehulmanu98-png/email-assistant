@@ -997,17 +997,17 @@ def test_manual_sync_keeps_queued_job_when_cloud_trigger_is_not_configured(monke
 def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
     from app.models import LoginThrottle
     from app.main import _login_identifier_hash
+    from app.security import hash_password
 
-    email = settings.bootstrap_email
-    identifier_hash = _login_identifier_hash(email)
+    email = f"rate-limit-{uuid.uuid4().hex}@example.com"
+    password = "known-user-test-password-123"
     db = SessionLocal()
     try:
-        old = db.scalar(select(LoginThrottle).where(LoginThrottle.identifier_hash == identifier_hash))
-        if old:
-            db.delete(old)
-            db.commit()
+        db.add(User(email=email, password_hash=hash_password(password)))
+        db.commit()
     finally:
         db.close()
+    identifier_hash = _login_identifier_hash(email)
 
     with TestClient(app) as client:
         for attempt in range(5):
@@ -1052,16 +1052,26 @@ def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
 def test_successful_login_clears_failed_login_counter():
     from app.models import LoginThrottle
     from app.main import _login_identifier_hash
+    from app.security import hash_password
 
-    identifier_hash = _login_identifier_hash(settings.bootstrap_email)
+    email = f"clear-throttle-{uuid.uuid4().hex}@example.com"
+    password = "another-known-test-password-456"
+    db = SessionLocal()
+    try:
+        db.add(User(email=email, password_hash=hash_password(password)))
+        db.commit()
+    finally:
+        db.close()
+    identifier_hash = _login_identifier_hash(email)
+
     with TestClient(app) as client:
         failed = client.post("/api/auth/login", json={
-            "email": settings.bootstrap_email, "password": "wrong-password",
+            "email": email, "password": "wrong-password",
         })
         assert failed.status_code == 401
 
         successful = client.post("/api/auth/login", json={
-            "email": settings.bootstrap_email, "password": settings.bootstrap_password,
+            "email": email, "password": password,
         })
         assert successful.status_code == 200
 
