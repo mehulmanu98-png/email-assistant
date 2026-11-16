@@ -58,6 +58,10 @@ class ConversationIn(BaseModel):
 class MessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
 
+class ConversationLinkIn(BaseModel):
+    conversation_id: int = Field(gt=0)
+    auto_update: bool = True
+
 
 class UserSettingsPatchIn(BaseModel):
     sync_times: list[str] = Field(min_length=1, max_length=6)
