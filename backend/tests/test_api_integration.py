@@ -370,3 +370,20 @@ def test_icloud_reference_header_resolves_to_stable_root_message_id():
     finally:
         db.close()
         engine.dispose()
+
+
+def test_waiting_for_user_tasks_do_not_consume_active_execution_slots():
+    with TestClient(app) as client:
+        login(client)
+        for index in range(4):
+            created = client.post("/api/tasks", json={
+                "title": f"Pending approval task {index + 1}",
+                "instructions": "Wait until the approved AI integration is available.",
+                "priority": "normal",
+            })
+            assert created.status_code == 200
+            assert created.json()["status"] == "waiting_for_user"
+
+        health = client.get("/api/health")
+        assert health.status_code == 200
+        assert health.json()["active_tasks"] == 0
