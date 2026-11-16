@@ -24,6 +24,8 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
       FIELD_ENCRYPTION_KEY: ${{ secrets.EMAIL_ASSISTANT_FIELD_KEY }}
+      GOOGLE_CLIENT_ID: ${{ secrets.EMAIL_ASSISTANT_GOOGLE_CLIENT_ID }}
+      GOOGLE_CLIENT_SECRET: ${{ secrets.EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET }}
       TIMEZONE: Asia/Kolkata
       AUTO_SYNC_TIMES: "08:00,11:00,14:00,17:00"
       MAX_MESSAGES_PER_SYNC: "500"
@@ -37,6 +39,10 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Add NEON_DATABASE_URL and EMAIL_ASSISTANT_FIELD_KEY under repository Settings > Secrets and variables > Actions to enable mailbox sync."
           else
+            if { [[ -n "${GOOGLE_CLIENT_ID}" ]] && [[ -z "${GOOGLE_CLIENT_SECRET}" ]]; } || { [[ -z "${GOOGLE_CLIENT_ID}" ]] && [[ -n "${GOOGLE_CLIENT_SECRET}" ]]; }; then
+              echo "::error::Both Gmail OAuth secrets must be configured together."
+              exit 1
+            fi
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: actions/setup-python@v5
