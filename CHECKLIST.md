@@ -14,6 +14,8 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | Provider-confirmed read and Trash | Built | Real-account validation pending. |
 | Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
 | Follow-ups workspace | Built | All/Action Required/Awaiting Response filters, overdue state, open source email, edit, snooze, complete and remove tracking item without changing the email. |
+| Follow-up lifecycle tests | Built | API integration test covers edit, snooze visibility, unsnooze, complete, remove and retention of source email. |
+| Conversation-length handoff | Built | `docs/continuation-handoff.md` records architecture, verified state, pending owner actions and next engineering steps. |
 | User-editable sync times and missed-slot catch-up | Built | Uses timezone-aware due-slot state and unique schedule-run keys. |
 | Bounded worker retries and stale-job recovery | Built | Retries at 5/10-minute intervals; requeues interrupted jobs. |
 | Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
