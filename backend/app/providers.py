@@ -230,6 +230,72 @@ def move_icloud_to_trash(account: EmailAccount, message_id: str) -> bool:
         except Exception:
             pass
 
+MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+
+def _icloud_message_parts(account: EmailAccount, message_id: str):
+    client, _ = _connect(account)
+    try:
+        status, _ = client.select("INBOX", readonly=True)
+        if status != "OK":
+            raise RuntimeError("iCloud Inbox could not be opened for attachment access.")
+        uid = _find_icloud_uid(client, message_id)
+        status, payload = client.uid("FETCH", uid, "(BODY.PEEK[])")
+        if status != "OK" or not payload or not isinstance(payload[0], tuple):
+            raise RuntimeError("The original iCloud message could not be fetched.")
+        parsed = email.message_from_bytes(payload[0][1])
+        result = []
+        parts = parsed.walk() if parsed.is_multipart() else [parsed]
+        for part in parts:
+            if part.get_content_maintype() == "multipart":
+                continue
+            disposition = (part.get_content_disposition() or "").lower()
+            raw_name = part.get_filename()
+            content_id = (part.get("Content-ID") or "").strip("<>")
+            if not raw_name and disposition != "attachment" and not content_id:
+                continue
+            filename = decode_mime(raw_name) if raw_name else (content_id or "attachment")
+            data = part.get_payload(decode=True)
+            if data is None and part.get_content_type() == "message/rfc822":
+                data = part.as_bytes()
+            data = data or b""
+            result.append({
+                "filename": filename[:255],
+                "mime_type": part.get_content_type() or "application/octet-stream",
+                "size": len(data),
+                "is_inline": disposition == "inline" or bool(content_id),
+                "data": data,
+            })
+        return result
+    finally:
+        try:
+            client.logout()
+        except Exception:
+            pass
+
+
+def list_icloud_attachments(account: EmailAccount, message_id: str) -> list[dict]:
+    return [{
+        "index": index,
+        "filename": item["filename"],
+        "mime_type": item["mime_type"],
+        "size": item["size"],
+        "is_inline": item["is_inline"],
+        "can_preview": item["mime_type"] == "application/pdf" or item["mime_type"].startswith("image/"),
+        "available": item["size"] <= MAX_ATTACHMENT_BYTES,
+    } for index, item in enumerate(_icloud_message_parts(account, message_id))]
+
+
+def get_icloud_attachment(account: EmailAccount, message_id: str, index: int) -> dict:
+    items = _icloud_message_parts(account, message_id)
+    if index < 0 or index >= len(items):
+        raise LookupError("Attachment not found.")
+    item = items[index]
+    if item["size"] > MAX_ATTACHMENT_BYTES:
+        raise ValueError("This attachment exceeds the 25 MB in-app download limit.")
+    return item
+
+
 def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
                 subject: str, body: str, source_message: StoredMessage | None = None) -> str:
     if not account.encrypted_secret:
