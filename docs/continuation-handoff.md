@@ -45,13 +45,13 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
 - App-managed email-thread linking with one-time history backfill, per-message deduplication, automatic append on subsequent mailbox syncs, and unlink/relink history retention.
-- Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts.
+- Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts. The setup walkthrough is documented in `docs/apple-shortcuts-setup.md`; a live Shortcut still needs to be created, enrolled and tested.
 - Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show the pending commercial approval status without fabricating an answer.
 
 ### Intentionally not active yet
 
 - AI current-message and entire-thread summaries, AI-generated reply drafting, Ask a Question responses, automatic priority assessment, automatic follow-up extraction/updates, attachment-content analysis, and delegated AI task execution.
-- The Apple Shortcut itself has not been installed/enrolled and tested against a live Mac/iPhone; the server-side command queue alone does not create native Apple Notes or Reminders.
+- The Apple Shortcut itself has not been created/enrolled and tested against a live Mac/iPhone; the server-side command queue alone does not create native Apple Notes or Reminders. Follow `docs/apple-shortcuts-setup.md` for the device-side steps.
 - Live production deployment and real-provider acceptance testing remain pending.
 - Do not describe any of these pending capabilities as working features until the relevant approval, device/account setup, implementation and tests are complete.
 
