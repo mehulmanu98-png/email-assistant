@@ -262,11 +262,11 @@ def _response_error(response: httpx.Response) -> SIWCRequestError:
         pass
     request_id = response.headers.get("x-request-id")
     message = f"ChatGPT plan request failed with HTTP {response.status_code}."
-    if response.status_code == 429 or error_code == "subscription_sharing_usage_limit_exceeded":
+    if error_code == "subscription_sharing_usage_limit_exceeded":
         return SIWCUsageLimitReached(
             message + " Pause plan-usage requests and check ChatGPT Settings > Usage.",
             status_code=response.status_code,
-            error_code=str(error_code) if error_code else None,
+            error_code=str(error_code),
             request_id=request_id,
         )
     if error_code in {"subscription_sharing_usage_unavailable", "insufficient_scope"}:
@@ -498,15 +498,20 @@ def create_response(
                 except (ValueError, UnicodeDecodeError):
                     code = None
                 request_id = response.headers.get("x-request-id")
-                if response.status_code == 429 or code == "subscription_sharing_usage_limit_exceeded":
+                if code == "subscription_sharing_usage_limit_exceeded":
                     raise SIWCUsageLimitReached(
                         "ChatGPT plan usage limit reached. Pause AI work and check ChatGPT Settings > Usage.",
                         status_code=response.status_code,
-                        error_code=str(code) if code else None,
+                        error_code=str(code),
                         request_id=request_id,
                     )
+                message = (
+                    "ChatGPT temporarily rate-limited this request."
+                    if response.status_code == 429
+                    else f"ChatGPT plan request failed with HTTP {response.status_code}."
+                )
                 raise SIWCRequestError(
-                    f"ChatGPT plan request failed with HTTP {response.status_code}.",
+                    message,
                     status_code=response.status_code,
                     error_code=str(code) if code else None,
                     request_id=request_id,
