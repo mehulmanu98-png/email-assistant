@@ -59,6 +59,7 @@ def init_db():
     _add_missing_columns("email_accounts", {
         "icloud_sync_uid_cursor": "VARCHAR(128)",
         "icloud_sync_since": "VARCHAR(32)",
+        "icloud_sync_uidvalidity": "VARCHAR(128)",
         "gmail_sync_page_token": "TEXT",
         "gmail_sync_query": "TEXT"
     })

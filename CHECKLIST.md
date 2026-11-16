@@ -10,7 +10,7 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | iCloud IMAP inbox import | Built | Initial 90 days; resumable 500-message batches. |
 | Gmail OAuth + Gmail API | Built | Google OAuth Web client and redirect URI still need setup. |
 | Incremental sync and deduplication | Built | Persisted provider cursors/page tokens. |
-| iCloud UID handling for no-Message-ID mail | Built | Uses stored IMAP UID for supported actions. |
+| iCloud UID handling for no-Message-ID mail | Built | Stored UID is bound to mailbox UIDVALIDITY; stale IDs are blocked. |
 | Provider-confirmed read and Trash | Built | Real-account validation pending. |
 | Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
 | User-editable sync times and missed-slot catch-up | Built | Uses timezone-aware due-slot state and unique schedule-run keys. |

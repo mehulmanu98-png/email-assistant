@@ -24,6 +24,7 @@ class EmailAccount(Base):
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     icloud_sync_uid_cursor: Mapped[str | None] = mapped_column(String(128), nullable=True)
     icloud_sync_since: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    icloud_sync_uidvalidity: Mapped[str | None] = mapped_column(String(128), nullable=True)
     gmail_sync_page_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     gmail_sync_query: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

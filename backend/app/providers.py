@@ -59,6 +59,13 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
         status, _ = client.select("INBOX", readonly=True)
         if status != "OK":
             raise RuntimeError("iCloud Inbox could not be opened.")
+        uidvalidity = _read_icloud_uidvalidity(client)
+        if (account.icloud_sync_uidvalidity and uidvalidity
+                and account.icloud_sync_uidvalidity != uidvalidity):
+            # UIDs can be reassigned after a mailbox reset. Restart any partial batch.
+            account.icloud_sync_uid_cursor = None
+        if uidvalidity:
+            account.icloud_sync_uidvalidity = uidvalidity
         now = datetime.now(timezone.utc)
         if account.icloud_sync_since:
             since = account.icloud_sync_since
@@ -85,7 +92,10 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
             raw = payload[0][1]
             metadata = payload[0][0] if isinstance(payload[0][0], bytes) else str(payload[0][0]).encode()
             parsed = email.message_from_bytes(raw)
-            message_id = (parsed.get("Message-ID") or "").strip() or "icloud-uid-" + uid.decode(errors="ignore")
+            message_id = (parsed.get("Message-ID") or "").strip()
+            if not message_id:
+                message_id = (f"icloud-uidv-{uidvalidity}-{uid.decode(errors='ignore')}"
+                              if uidvalidity else "icloud-uid-unverified-" + uid.decode(errors="ignore"))
             if db.scalar(select(StoredMessage.id).where(
                 StoredMessage.account_id == account.id,
                 StoredMessage.provider_message_id == message_id
@@ -131,12 +141,34 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
         except Exception:
             pass
 
+def _read_icloud_uidvalidity(client) -> str | None:
+    """Read current mailbox UIDVALIDITY, needed to make stored UID actions safe."""
+    try:
+        response_code, values = client.response("UIDVALIDITY")
+    except Exception:
+        return None
+    if response_code != "UIDVALIDITY" or not values:
+        return None
+    value = values[0]
+    value = value.decode(errors="ignore") if isinstance(value, bytes) else str(value)
+    return value if value.isdigit() else None
+
+
 def _find_icloud_uid(client, message_id: str) -> bytes:
-    if message_id.startswith("icloud-uid-"):
-        uid = message_id.removeprefix("icloud-uid-")
-        if uid.isdigit():
-            return uid.encode()
-        raise RuntimeError("The stored iCloud UID is invalid.")
+    if message_id.startswith("icloud-uidv-"):
+        value = message_id.removeprefix("icloud-uidv-")
+        try:
+            expected_validity, uid = value.split("-", 1)
+        except ValueError:
+            raise RuntimeError("The stored iCloud UID identity is invalid.")
+        current_validity = _read_icloud_uidvalidity(client)
+        if not expected_validity.isdigit() or not uid.isdigit():
+            raise RuntimeError("The stored iCloud UID identity is invalid.")
+        if not current_validity or current_validity != expected_validity:
+            raise RuntimeError("The iCloud mailbox identity changed. Sync the mailbox again before using this action.")
+        return uid.encode()
+    if message_id.startswith(("icloud-uid-", "icloud-uid-unverified-")):
+        raise RuntimeError("This imported iCloud message has no verified UIDVALIDITY. Refresh the mailbox before using this action.")
     if message_id.startswith("icloud-seq-"):
         raise RuntimeError("This older imported message has no Message-ID for a safe provider action.")
     clean = message_id.replace('"', "")
