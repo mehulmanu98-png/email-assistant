@@ -7,11 +7,12 @@
 
 OpenAI publishes an open-source Sign in with ChatGPT (SIWC) OAuth flow and a dedicated self-hosted-VM procedure. The procedure is specifically for an open-source app running on a remote VM:
 
-1. Create and persist a stable, opaque ext_agent_host_id for the AI VM.
-2. Complete OAuth locally on the user's Mac. A loopback callback such as http://127.0.0.1:1455/auth/callback returns to the computer running the browser, not to the remote VM.
-3. Transfer the selected registration's protected credential file to the VM using a secure channel such as SSH.
-4. Preserve the VM's own host ID when importing the credentials.
-5. Let the VM own future token refreshes.
+1. On the AI VM, create and persist one stable, opaque ext_agent_host_id before sign-in.
+2. Copy that non-secret host ID to the user's Mac. It is the target VM's identity, not a new Mac identity.
+3. Complete OAuth locally on the user's Mac. A loopback callback such as http://127.0.0.1:1455/auth/callback returns to the computer running the browser, not to the remote VM. The OAuth request includes the VM's ext_agent_host_id.
+4. Transfer the protected credential file to the VM using a secure channel such as SSH/IAP.
+5. Import the file only if its ext_agent_host_id matches the ID already persisted on that VM. The host ID is preserved; it is never overwritten by the Mac helper.
+6. Let the VM own future token refreshes. The Mac helper is only the initial sign-in/transfer tool and does not make inference requests in this design.
 
 The user's dedicated VM must be in a Google Cloud project the user controls, not a shared third-party inference service. Persistent SIWC credentials live only on that VM's own local filesystem with owner-only file permissions. They are not stored in Neon, Cloud Secret Manager, Cloud Run environment variables, GitHub, the browser, URLs or logs.
 
@@ -21,17 +22,17 @@ This flow is distinct from copying the official OpenAI DevKit. The project's own
 
 ### Host identity
 
-- Create a random UUIDv4 once for the Mac OAuth helper and a separate random UUIDv4 for the AI VM.
-- Format each as urn:uuid:<uuid>.
-- Persist the ID and reuse it for that host. Do not use an email address, user ID or other personal identifier.
-- The Mac and VM share the same issued OAuth client registration for the same ChatGPT account/workspace, but retain separate host IDs.
+- Create one random UUIDv4 on the AI VM before the first sign-in and persist it in that VM user's private SIWC configuration directory.
+- Format it as urn:uuid:<uuid>. The VM's ID remains stable across sign-ins, credential refreshes and VM restarts. Do not use an email address, user ID or other personal identifier.
+- Copy this non-secret VM host ID to the Mac for the OAuth helper. The Mac authorization request uses this VM ID in ext_agent_host_id, so the returned protected credential file is already bound to the VM runtime.
+- Do not generate a second Mac host ID for this VM-transfer flow, and do not replace the VM ID on import. If a Mac later becomes an independent inference runtime, give it a separate host ID and its own authorization session.
 
 ### Local Mac authorization
 
 - Start the callback listener on loopback only, with an app-defined callback such as http://127.0.0.1:1455/auth/callback.
 - Generate a fresh cryptographically random state, OIDC nonce and PKCE verifier per authorization.
 - Use S256 PKCE. Bind state, nonce, verifier, exact redirect URI, expected client ID and the host ID to this one pending attempt.
-- First-time registration uses client_id=dynamic_agent_client, agent_name_hint=Email Assistant and the Mac host ID.
+- First-time registration uses client_id=dynamic_agent_client, agent_name_hint=Email Assistant and the pre-created VM host ID.
 - Request identity and plan-use scopes: openid profile email offline_access resource.invoke chatgpt.tokens.use.direct.
 - Set resource=https://api.openai.com/v1.
 - Use the documented authorization endpoint: https://auth.openai.com/api/accounts/authorize.
@@ -50,11 +51,13 @@ This flow is distinct from copying the official OpenAI DevKit. The project's own
 
 ## 3. Secure VM import and refresh
 
-The user completes OAuth on the Mac and uses a secure transfer method to send only the protected credential file to the VM. Prefer an SSH/IAP tunnel; do not paste credentials into chat, email, GitHub or terminal command arguments.
+The user copies the non-secret VM host ID to the Mac, completes OAuth there, and uses a secure transfer method to send only the protected credential file back to the VM. Prefer SSH/IAP or gcloud compute scp --tunnel-through-iap; do not paste credentials into chat, email, GitHub or terminal command arguments.
 
 On the VM:
-- Store the imported record in an app-owned path such as /var/lib/email-assistant/siwc/credentials.json, readable only by the dedicated runtime user.
-- Keep the VM's pre-generated host ID; do not replace it with the Mac's host ID contained in the imported registration.
+- Generate and persist the VM host ID first using scripts/siwc_prepare_vm.sh.
+- Import with scripts/siwc_import_vm_credentials.py. The importer checks that the credential file's ext_agent_host_id exactly matches the VM's persisted host ID and that the credential file is owner-only.
+- Store the imported record in an app-owned path such as ~/.config/email-assistant/siwc/credentials.json, readable only by the dedicated runtime user.
+- Never replace the VM's pre-generated host ID. The Mac helper does not have a separate host ID in this transfer flow.
 - Use an exclusive lock around refresh and credential replacement.
 - Refresh before expiry or after a confirmed expiry response, not on every request.
 - Atomically replace the access token, expiry, granted scopes and rotated refresh token together after a successful refresh.
