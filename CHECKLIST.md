@@ -32,7 +32,7 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | No notifications | Built | No proactive notification delivery in current implementation. |
 | AI summaries/replies/task execution | Blocked pending approval | ChatGPT Go can be eligible in participating commercial apps, but this app has no commercial SIWC approval. Official open-source DevKit is noncommercial and is not used for business email processing. No API/credits fallback. |
 | Attachments | Partially built | Original attachments can be listed, viewed and downloaded from the provider. AI extraction/analysis and Office-format previews are not implemented. |
-| Apple Notes/Reminders | Queue and device APIs built; Shortcut acceptance pending | Device enrolment, command queue, polling, idempotency and result receipts are implemented. A real Shortcut still needs setup and live testing on an enrolled Mac/iPhone. |
+| Apple Notes/Reminders | Queue and device APIs + setup guide built; Shortcut acceptance pending | Device enrolment, command queue, polling, idempotency and result receipts are implemented. `docs/apple-shortcuts-setup.md` documents the enrolment, poll, native action and receipt flow. A real Shortcut still needs to be created, enrolled and live-tested on a Mac/iPhone. |
 | OpenAI commercial SIWC approval | Pending | Owner must request approval; do not embed the noncommercial DevKit for business use. |
 | Live provider acceptance test | Pending | Must test with non-critical mailbox. |
 | Production audit, backups/restore, rate limits and independent security review | Pending | Complete before relying on critical business email. |
