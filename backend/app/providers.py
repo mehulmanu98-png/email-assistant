@@ -243,7 +243,10 @@ def _icloud_message_parts(account: EmailAccount, message_id: str):
         status, payload = client.uid("FETCH", uid, "(BODY.PEEK[])")
         if status != "OK" or not payload or not isinstance(payload[0], tuple):
             raise RuntimeError("The original iCloud message could not be fetched.")
-        parsed = email.message_from_bytes(payload[0][1])
+        raw_message = payload[0][1]
+        if len(raw_message) > 60 * 1024 * 1024:
+            raise ValueError("The original email exceeds the 60 MB in-app attachment parsing limit.")
+        parsed = email.message_from_bytes(raw_message)
         result = []
         parts = parsed.walk() if parsed.is_multipart() else [parsed]
         for part in parts:
@@ -281,7 +284,7 @@ def list_icloud_attachments(account: EmailAccount, message_id: str) -> list[dict
         "mime_type": item["mime_type"],
         "size": item["size"],
         "is_inline": item["is_inline"],
-        "can_preview": item["mime_type"] == "application/pdf" or item["mime_type"].startswith("image/"),
+        "can_preview": item["mime_type"] == "application/pdf" or item["mime_type"] in {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"},
         "available": item["size"] <= MAX_ATTACHMENT_BYTES,
     } for index, item in enumerate(_icloud_message_parts(account, message_id))]
 
