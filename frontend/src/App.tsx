@@ -46,7 +46,7 @@ export default function App(){
  },[search]);
  useEffect(()=>{api.me().then(setUser).catch(()=>setUser(false))},[]);
  useEffect(()=>{if(user)refresh()},[user,refresh]);
- useEffect(()=>{if(!selected){setThreadLink(null);return;}let current=true;api.emailThreadLink(selected.id).then(link=>{if(current)setThreadLink(link)}).catch(err=>{if(current)setNotice(err instanceof Error?err.message:"Could not load conversation link")});return()=>{current=false}},[selected?.id]);
+ useEffect(()=>{if(!selected){setThreadLink(null);return;}let current=true;setThreadLink(null);setShowThreadLinker(false);api.emailThreadLink(selected.id).then(link=>{if(current)setThreadLink(link)}).catch(err=>{if(current)setNotice(err instanceof Error?err.message:"Could not load conversation link")});return()=>{current=false}},[selected?.id]);
  const login=async(email:string,password:string)=>setUser(await api.login(email,password));
  const openMessage=async(m:any)=>{try{const full=await api.message(m.id);setSelected(full);setDraft(null);setShowOriginal(false);await api.markRead(m.id);setMessages(rows=>rows.map(x=>x.id===m.id?{...x,is_read:true}:x))}catch(err){setNotice(String(err))}};
  const sync=async()=>{try{const r=await api.sync();setNotice(r.queued?String(r.queued)+" mailbox sync job(s) queued.":"No connected email accounts to sync.");await refresh()}catch(err){setNotice(String(err))}};
@@ -98,7 +98,7 @@ export default function App(){
      {threadLink&&<p className="thread-link-current">Currently linked to <b>{threadLink.conversation_title}</b> · {threadLink.linked_message_count} email(s) already tracked.</p>}
      <label>Destination conversation</label><select value={linkConversationId} onChange={e=>setLinkConversationId(e.target.value)} required><option value="">Select a conversation</option>{conversations.map(c=><option key={c.id} value={c.id}>{c.title}</option>)}</select>
      <label className="inline-check"><input type="checkbox" checked={linkAutoUpdate} onChange={e=>setLinkAutoUpdate(e.target.checked)}/> Append future emails from this thread automatically</label>
-     <div className="inline-actions"><button type="button" className="button secondary" onClick={createConversationAndLink} disabled={linkBusy}>Create new conversation</button><button className="button primary" disabled={linkBusy||!linkConversationId}>{linkBusy?"Saving…":threadLink?"Update link":"Link conversation"}</button></div>
+     <div className="inline-actions">{!threadLink&&<button type="button" className="button secondary" onClick={createConversationAndLink} disabled={linkBusy}>Create new conversation</button>}<button className="button primary" disabled={linkBusy||!linkConversationId}>{linkBusy?"Saving…":threadLink?"Update link":"Link conversation"}</button></div>
      {threadLink&&<button type="button" className="text-danger" onClick={removeThreadLink} disabled={linkBusy}>Unlink thread (keep conversation history)</button>}
     </form></div>}
    </>:<Empty title="Select an email" detail="Summaries, original content and available actions appear here."/>}</div></section>}
