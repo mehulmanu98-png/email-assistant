@@ -7,7 +7,7 @@ from email.utils import getaddresses
 from urllib.parse import urlencode, quote
 
 import httpx
-from fastapi import FastAPI, Depends, HTTPException, Response, Request
+from fastapi import FastAPI, Depends, HTTPException, Response, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +19,8 @@ from .config import settings
 from .db import get_db, init_db
 from .models import (
     User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, FollowUp, AITask,
-    AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, utcnow
+    AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, AppleDevice,
+    AppleDeviceEnrollment, AppleDeviceCommand, utcnow
 )
 from .security import (
     hash_password, verify_password, create_access_token, current_user,
@@ -27,7 +28,9 @@ from .security import (
 )
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
-    DraftIn, ForwardDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn, UserSettingsPatchIn
+    DraftIn, ForwardDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn,
+    UserSettingsPatchIn, AppleEnrollmentCreateIn, AppleDeviceEnrollIn, AppleCommandIn,
+    AppleDeviceCommandResultIn
 )
 from .policy import effective_priority
 from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
@@ -807,6 +810,328 @@ def send_forward_draft(
         "status": "sent", "provider_accepted": True, "delivery_confirmed": False,
         "note": "The provider accepted the forwarded email; final delivery is not confirmed."
     }
+
+
+def _token_digest(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _apple_device_from_token(db: Session, token: str | None) -> AppleDevice:
+    if not token:
+        raise HTTPException(401, "Apple Shortcut device authentication is required.")
+    device = db.scalar(select(AppleDevice).where(
+        AppleDevice.token_hash == _token_digest(token),
+        AppleDevice.is_active.is_(True),
+    ))
+    if not device:
+        raise HTTPException(401, "This Apple Shortcut device token is invalid or revoked.")
+    device.last_seen_at = utcnow()
+    return device
+
+
+def _apple_command_out(command: AppleDeviceCommand) -> dict:
+    return {
+        "id": command.id,
+        "command_type": command.command_type,
+        "title": command.payload.get("title", ""),
+        "status": command.status,
+        "device_id": command.device_id,
+        "payload": command.payload,
+        "attempts": command.attempts,
+        "result": command.result,
+        "error_message": command.error_message,
+        "created_at": command.created_at,
+        "updated_at": command.updated_at,
+        "completed_at": command.completed_at,
+    }
+
+
+@app.post("/api/apple/devices/enrollment")
+def create_apple_device_enrollment(
+    data: AppleEnrollmentCreateIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    token = secrets.token_urlsafe(36)
+    enrollment = AppleDeviceEnrollment(
+        user_id=user.id,
+        device_name=data.device_name.strip(),
+        token_hash=_token_digest(token),
+        expires_at=utcnow() + timedelta(minutes=15),
+    )
+    db.add(enrollment)
+    db.commit()
+    db.refresh(enrollment)
+    # The enrollment code is shown once. Only its hash is stored.
+    return {
+        "enrollment_token": token,
+        "device_name": enrollment.device_name,
+        "expires_at": enrollment.expires_at,
+        "instructions": "Enter this code once in your private Apple Shortcut enrolment step. It expires in 15 minutes.",
+    }
+
+
+@app.get("/api/apple/devices")
+def list_apple_devices(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    devices = db.scalars(select(AppleDevice).where(
+        AppleDevice.user_id == user.id
+    ).order_by(desc(AppleDevice.created_at))).all()
+    return [{
+        "id": device.id,
+        "name": device.name,
+        "is_active": device.is_active,
+        "created_at": device.created_at,
+        "last_seen_at": device.last_seen_at,
+        "revoked_at": device.revoked_at,
+    } for device in devices]
+
+
+@app.delete("/api/apple/devices/{device_id}")
+def revoke_apple_device(
+    device_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    device = db.scalar(select(AppleDevice).where(
+        AppleDevice.id == device_id, AppleDevice.user_id == user.id
+    ))
+    if not device:
+        raise HTTPException(404, "Apple Shortcut device not found.")
+    if device.is_active:
+        device.is_active = False
+        device.revoked_at = utcnow()
+        db.commit()
+    return {"revoked": True, "device_id": device.id}
+
+
+@app.post("/api/apple/device/enroll")
+def enroll_apple_device(data: AppleDeviceEnrollIn, db: Session = Depends(get_db)):
+    enrollment = db.scalar(select(AppleDeviceEnrollment).where(
+        AppleDeviceEnrollment.token_hash == _token_digest(data.enrollment_token),
+    ).with_for_update())
+    if not enrollment or enrollment.consumed_at:
+        raise HTTPException(401, "Enrollment code is invalid or has already been used.")
+    expiry = enrollment.expires_at
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    if expiry <= utcnow():
+        raise HTTPException(410, "Enrollment code has expired. Create a new code in Email Assistant settings.")
+    device_token = secrets.token_urlsafe(48)
+    device = AppleDevice(
+        user_id=enrollment.user_id,
+        name=data.device_name.strip() or enrollment.device_name,
+        token_hash=_token_digest(device_token),
+        is_active=True,
+    )
+    db.add(device)
+    enrollment.consumed_at = utcnow()
+    db.commit()
+    db.refresh(device)
+    # Persistent device token is returned once; database stores only its hash.
+    return {
+        "device_id": device.id,
+        "device_name": device.name,
+        "device_token": device_token,
+        "instructions": "Store this token privately in your personal Shortcut. It will not be shown again and can be revoked from Email Assistant settings.",
+    }
+
+
+@app.post("/api/apple/commands")
+def queue_apple_command(
+    data: AppleCommandIn, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    if data.command_type == "note" and not data.body.strip():
+        raise HTTPException(422, "A Note needs some content.")
+    if data.command_type == "reminder" and not data.due_at:
+        raise HTTPException(422, "A Reminder needs a due date and time.")
+    if data.message_id and not db.scalar(select(EmailMessage).where(
+        EmailMessage.id == data.message_id,
+        EmailMessage.user_id == user.id,
+    )):
+        raise HTTPException(404, "Source email not found.")
+    if data.device_id:
+        device = db.scalar(select(AppleDevice).where(
+            AppleDevice.id == data.device_id,
+            AppleDevice.user_id == user.id,
+            AppleDevice.is_active.is_(True),
+        ))
+        if not device:
+            raise HTTPException(404, "Selected Apple device is unavailable or revoked.")
+    due_at = data.due_at
+    if due_at:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+        try:
+            zone = ZoneInfo(data.timezone)
+        except ZoneInfoNotFoundError:
+            raise HTTPException(422, "Invalid time zone.")
+        if due_at.tzinfo is None:
+            due_at = due_at.replace(tzinfo=zone)
+        due_at = due_at.astimezone(timezone.utc)
+    payload = {
+        "title": data.title.strip(),
+        "body": data.body,
+        "due_at": due_at.isoformat() if due_at else None,
+        "timezone": data.timezone,
+        "source_message_id": data.message_id,
+        "idempotency_marker": f"[EmailAssistantCommand:{data.idempotency_key}]",
+    }
+    existing = db.scalar(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.user_id == user.id,
+        AppleDeviceCommand.idempotency_key == data.idempotency_key,
+    ))
+    if existing:
+        if existing.command_type != data.command_type or existing.payload != payload:
+            raise HTTPException(409, "This idempotency key was already used for a different Apple command.")
+        return _apple_command_out(existing)
+    command = AppleDeviceCommand(
+        user_id=user.id,
+        device_id=data.device_id,
+        command_type=data.command_type,
+        payload=payload,
+        idempotency_key=data.idempotency_key,
+        status="pending_on_device",
+    )
+    db.add(command)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        existing = db.scalar(select(AppleDeviceCommand).where(
+            AppleDeviceCommand.user_id == user.id,
+            AppleDeviceCommand.idempotency_key == data.idempotency_key,
+        ))
+        if existing:
+            return _apple_command_out(existing)
+        raise
+    db.refresh(command)
+    return _apple_command_out(command)
+
+
+@app.get("/api/apple/commands")
+def list_apple_commands(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.user_id == user.id
+    ).order_by(desc(AppleDeviceCommand.created_at)).limit(100)).all()
+    return [_apple_command_out(row) for row in rows]
+
+
+@app.post("/api/apple/commands/{command_id}/retry")
+def retry_apple_command(
+    command_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    command = db.scalar(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.id == command_id,
+        AppleDeviceCommand.user_id == user.id,
+    ).with_for_update())
+    if not command:
+        raise HTTPException(404, "Apple command not found.")
+    if command.status != "failed":
+        raise HTTPException(409, "Only failed Apple commands can be retried. Pending or leased commands must be allowed to finish.")
+    command.status = "pending_on_device"
+    command.device_id = None
+    command.lease_token_hash = None
+    command.lease_expires_at = None
+    command.error_message = ""
+    command.completed_at = None
+    command.result = None
+    db.commit()
+    db.refresh(command)
+    return _apple_command_out(command)
+
+
+@app.delete("/api/apple/commands/{command_id}")
+def cancel_apple_command(
+    command_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    command = db.scalar(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.id == command_id,
+        AppleDeviceCommand.user_id == user.id,
+    ).with_for_update())
+    if not command:
+        raise HTTPException(404, "Apple command not found.")
+    if command.status not in {"pending_on_device", "failed"}:
+        raise HTTPException(409, "A leased or completed Apple command cannot be cancelled.")
+    command.status = "cancelled"
+    command.updated_at = utcnow()
+    db.commit()
+    return {"cancelled": True, "command_id": command.id}
+
+
+@app.post("/api/apple/device/commands/poll")
+def poll_apple_device_commands(
+    device_token: str | None = Header(default=None, alias="X-Apple-Device-Token"),
+    db: Session = Depends(get_db),
+):
+    device = _apple_device_from_token(db, device_token)
+    now = utcnow()
+    command = db.scalar(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.user_id == device.user_id,
+        (AppleDeviceCommand.device_id.is_(None) | (AppleDeviceCommand.device_id == device.id)),
+        (
+            AppleDeviceCommand.status == "pending_on_device"
+        ) | (
+            (AppleDeviceCommand.status == "leased") &
+            (AppleDeviceCommand.lease_expires_at <= now)
+        ),
+    ).order_by(AppleDeviceCommand.created_at).limit(1).with_for_update(skip_locked=True))
+    if not command:
+        db.commit()
+        return {"commands": []}
+    lease_token = secrets.token_urlsafe(32)
+    command.device_id = device.id
+    command.status = "leased"
+    command.attempts += 1
+    command.lease_token_hash = _token_digest(lease_token)
+    command.lease_expires_at = now + timedelta(minutes=3)
+    command.updated_at = now
+    db.commit()
+    return {
+        "commands": [{
+            "id": command.id,
+            "command_type": command.command_type,
+            "payload": command.payload,
+            "lease_token": lease_token,
+            "lease_expires_at": command.lease_expires_at,
+        }]
+    }
+
+
+@app.post("/api/apple/device/commands/{command_id}/result")
+def submit_apple_device_result(
+    command_id: int, data: AppleDeviceCommandResultIn,
+    device_token: str | None = Header(default=None, alias="X-Apple-Device-Token"),
+    db: Session = Depends(get_db),
+):
+    device = _apple_device_from_token(db, device_token)
+    command = db.scalar(select(AppleDeviceCommand).where(
+        AppleDeviceCommand.id == command_id,
+        AppleDeviceCommand.user_id == device.user_id,
+        AppleDeviceCommand.device_id == device.id,
+    ).with_for_update())
+    if not command or command.status != "leased":
+        raise HTTPException(404, "Leased Apple command not found.")
+    if not command.lease_token_hash or not secrets.compare_digest(
+        command.lease_token_hash, _token_digest(data.lease_token)
+    ):
+        raise HTTPException(403, "The command lease token is invalid.")
+    lease_expiry = command.lease_expires_at
+    if not lease_expiry:
+        raise HTTPException(409, "The command lease is no longer valid.")
+    if lease_expiry.tzinfo is None:
+        lease_expiry = lease_expiry.replace(tzinfo=timezone.utc)
+    if lease_expiry <= utcnow():
+        raise HTTPException(409, "The command lease expired. Poll again to receive a renewed lease.")
+    command.lease_token_hash = None
+    command.lease_expires_at = None
+    command.updated_at = utcnow()
+    if data.success:
+        command.status = "completed"
+        command.result = {"native_record_id": data.native_record_id}
+        command.completed_at = utcnow()
+        command.error_message = ""
+    else:
+        command.status = "failed"
+        command.error_message = data.error_message or "The Apple Shortcut reported a failed native action."
+        command.result = {"native_record_id": data.native_record_id}
+    db.commit()
+    return _apple_command_out(command)
 
 
 @app.get("/api/followups")
