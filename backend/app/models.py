@@ -21,7 +21,7 @@ class LoginThrottle(Base):
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, index=True)
 
 
 class EmailAccount(Base):
