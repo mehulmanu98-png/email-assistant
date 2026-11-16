@@ -3,7 +3,7 @@ import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from email.utils import getaddresses
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Response, Request
@@ -29,8 +29,8 @@ from .schemas import (
     DraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn, UserSettingsPatchIn
 )
 from .policy import effective_priority
-from .providers import set_icloud_read, move_icloud_to_trash, send_icloud
-from .gmail import set_gmail_read, trash_gmail, send_gmail
+from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, list_icloud_attachments, get_icloud_attachment
+from .gmail import set_gmail_read, trash_gmail, send_gmail, list_gmail_attachments, get_gmail_attachment
 from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
@@ -385,6 +385,78 @@ def message_detail(message_id: int, user: User = Depends(current_user), db: Sess
         "summary": row.current_summary, "thread_summary": row.thread_summary,
         "is_read": row.is_read, "has_attachments": row.has_attachments
     }
+
+@app.get("/api/messages/{message_id}/attachments")
+def message_attachments(
+    message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    row = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id,
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(False),
+    ))
+    if not row:
+        raise HTTPException(404, "Email not found")
+    account = db.get(EmailAccount, row.account_id)
+    if not account:
+        raise HTTPException(409, "Source email account is unavailable.")
+    try:
+        if account.provider == "icloud":
+            items = list_icloud_attachments(account, row.provider_message_id)
+        elif account.provider == "gmail":
+            items = list_gmail_attachments(db, account, row.provider_message_id)
+        else:
+            raise RuntimeError("Unsupported provider.")
+        return {"message_id": row.id, "attachments": items}
+    except Exception as exc:
+        raise HTTPException(502, f"Original attachments could not be listed ({type(exc).__name__}).")
+
+
+@app.get("/api/messages/{message_id}/attachments/{attachment_index}")
+def message_attachment(
+    message_id: int, attachment_index: int, inline: bool = False,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    row = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id,
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(False),
+    ))
+    if not row:
+        raise HTTPException(404, "Email not found")
+    account = db.get(EmailAccount, row.account_id)
+    if not account:
+        raise HTTPException(409, "Source email account is unavailable.")
+    try:
+        if account.provider == "icloud":
+            attachment = get_icloud_attachment(account, row.provider_message_id, attachment_index)
+        elif account.provider == "gmail":
+            attachment = get_gmail_attachment(db, account, row.provider_message_id, attachment_index)
+        else:
+            raise RuntimeError("Unsupported provider.")
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        raise HTTPException(413, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f"Original attachment could not be retrieved ({type(exc).__name__}).")
+
+    mime_type = attachment["mime_type"] or "application/octet-stream"
+    can_inline = mime_type == "application/pdf" or mime_type.startswith("image/")
+    disposition = "inline" if inline and can_inline else "attachment"
+    filename = str(attachment["filename"] or "attachment").replace("\\r", "_").replace("\\n", "_").replace('"', "_")
+    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"
+    return Response(
+        content=attachment["data"],
+        media_type=mime_type,
+        headers={
+            "Content-Disposition": content_disposition,
+            "Content-Length": str(len(attachment["data"])),
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
 
 @app.post("/api/messages/{message_id}/read")
 def mark_read(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
