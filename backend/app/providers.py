@@ -242,7 +242,7 @@ def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[s
         message["Cc"] = ", ".join(cc)
     message["Subject"] = subject
     message["Message-ID"] = make_msgid()
-    if source_message and not source_message.provider_message_id.startswith(("icloud-seq-", "icloud-uid-")):
+    if source_message and not source_message.provider_message_id.startswith(("icloud-seq-", "icloud-uid")):
         message["In-Reply-To"] = source_message.provider_message_id
         message["References"] = (source_message.thread_key + " " + source_message.provider_message_id).strip()
     message.set_content(body)
