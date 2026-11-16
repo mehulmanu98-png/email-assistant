@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="mehulmanu98-png/email-assistant"
 SERVICE="${SERVICE:-email-assistant}"
+WORKER_JOB="${WORKER_JOB:-email-assistant-mail-worker}"
+SCHEDULER_JOB="${SCHEDULER_JOB:-email-assistant-mail-sync}"
 REGION="${REGION:-asia-south1}"
 RUNTIME_SA_NAME="email-assistant-runtime"
+SCHEDULER_SA_NAME="email-assistant-scheduler"
 
 if [[ ! -f Dockerfile || ! -d backend || ! -d frontend ]]; then
   echo "Run this script from the Email Assistant repository root."
@@ -37,15 +39,21 @@ fi
 JWT_SECRET="$(openssl rand -hex 48)"
 FIELD_ENCRYPTION_KEY="$(openssl rand -hex 48)"
 RUNTIME_SA="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+SCHEDULER_SA="${SCHEDULER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo
-echo "Enabling required Google Cloud services..."
+echo "Enabling Cloud Run, Cloud Build, Secret Manager and Cloud Scheduler APIs..."
 gcloud config set project "$PROJECT_ID" >/dev/null
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com
 
-if ! gcloud iam service-accounts describe "$RUNTIME_SA" --project "$PROJECT_ID" >/dev/null 2>&1; then
-  gcloud iam service-accounts create "$RUNTIME_SA_NAME" --display-name="Email Assistant runtime" --project "$PROJECT_ID"
-fi
+create_service_account() {
+  local name="$1" email="$2"
+  if ! gcloud iam service-accounts describe "$email" --project "$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud iam service-accounts create "$name" --display-name="$name" --project "$PROJECT_ID"
+  fi
+}
+create_service_account "$RUNTIME_SA_NAME" "$RUNTIME_SA"
+create_service_account "$SCHEDULER_SA_NAME" "$SCHEDULER_SA"
 
 put_secret() {
   local name="$1" value="$2"
@@ -71,7 +79,7 @@ if [[ -n "$GOOGLE_CLIENT_ID" ]]; then
 fi
 
 echo
-echo "Deploying the private-login dashboard/API to Cloud Run in $REGION..."
+echo "Building and deploying the dashboard/API to Cloud Run in $REGION..."
 gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT_ID" --region "$REGION" \
   --service-account "$RUNTIME_SA" --allow-unauthenticated \
@@ -79,28 +87,58 @@ gcloud run deploy "$SERVICE" \
   --set-env-vars "APP_ENV=production,BOOTSTRAP_EMAIL=$BOOTSTRAP_EMAIL,TIMEZONE=Asia/Kolkata,INITIAL_SYNC_DAYS=90,MAX_MESSAGES_PER_SYNC=500,FRONTEND_ORIGIN=https://placeholder.invalid,GOOGLE_REDIRECT_URI=https://placeholder.invalid/api/oauth/gmail/callback" \
   --set-secrets "$SECRET_MAP"
 
-SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
-GOOGLE_REDIRECT_URI="$SERVICE_URL/api/oauth/gmail/callback"
+IMAGE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(spec.template.spec.containers[0].image)')"
+SERVICE_URL_PUBLIC="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
+GOOGLE_REDIRECT_URI="$SERVICE_URL_PUBLIC/api/oauth/gmail/callback"
 gcloud run services update "$SERVICE" --project "$PROJECT_ID" --region "$REGION" \
-  --update-env-vars "FRONTEND_ORIGIN=$SERVICE_URL,GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT_URI" >/dev/null
+  --update-env-vars "FRONTEND_ORIGIN=$SERVICE_URL_PUBLIC,GOOGLE_REDIRECT_URI=$GOOGLE_REDIRECT_URI" >/dev/null
 
 echo
-if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-  printf '%s' "$NEON_DATABASE_URL" | gh secret set NEON_DATABASE_URL --repo "$REPO"
-  printf '%s' "$FIELD_ENCRYPTION_KEY" | gh secret set EMAIL_ASSISTANT_FIELD_KEY --repo "$REPO"
-  echo "GitHub Actions Neon secrets configured."
+echo "Deploying the one-shot mailbox worker job..."
+gcloud run jobs deploy "$WORKER_JOB" \
+  --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE_URL" \
+  --service-account "$RUNTIME_SA" --tasks 1 --parallelism 1 \
+  --max-retries 0 --task-timeout 900s --cpu 1 --memory 512Mi \
+  --command python --args="-m,app.worker,--scheduled-once" \
+  --set-env-vars "TIMEZONE=Asia/Kolkata,MAX_MESSAGES_PER_SYNC=500" \
+  --set-secrets "$SECRET_MAP"
+
+# Only this separate scheduler identity can start the worker job.
+gcloud run jobs add-iam-policy-binding "$WORKER_JOB" \
+  --project "$PROJECT_ID" --region "$REGION" \
+  --member="serviceAccount:$SCHEDULER_SA" --role="roles/run.invoker" >/dev/null
+
+echo "Testing worker-to-Neon connectivity before enabling the recurring schedule..."
+gcloud run jobs execute "$WORKER_JOB" --project "$PROJECT_ID" --region "$REGION" --wait
+
+SCHEDULER_URI="https://run.googleapis.com/v2/projects/$PROJECT_ID/locations/$REGION/jobs/$WORKER_JOB:run"
+SCHEDULER_FLAGS=(
+  "--project=$PROJECT_ID"
+  "--location=$REGION"
+  "--schedule=*/15 * * * *"
+  "--time-zone=Asia/Kolkata"
+  "--uri=$SCHEDULER_URI"
+  "--http-method=POST"
+  "--message-body={}"
+  "--oauth-service-account-email=$SCHEDULER_SA"
+  "--oauth-token-scope=https://www.googleapis.com/auth/cloud-platform"
+  "--attempt-deadline=60s"
+)
+
+if gcloud scheduler jobs describe "$SCHEDULER_JOB" --project "$PROJECT_ID" --location "$REGION" >/dev/null 2>&1; then
+  echo "Updating existing Cloud Scheduler job..."
+  gcloud scheduler jobs update http "$SCHEDULER_JOB" "${SCHEDULER_FLAGS[@]}"
 else
-  echo "GitHub CLI is not authenticated. Add these Actions secrets manually:"
-  echo "  NEON_DATABASE_URL"
-  echo "  EMAIL_ASSISTANT_FIELD_KEY"
-  echo "After gh auth login, run these commands to copy the encrypted secret values without displaying them:"
-  echo "  gcloud secrets versions access latest --secret=email-assistant-neon-url --project $PROJECT_ID | gh secret set NEON_DATABASE_URL --repo $REPO"
-  echo "  gcloud secrets versions access latest --secret=email-assistant-field-key --project $PROJECT_ID | gh secret set EMAIL_ASSISTANT_FIELD_KEY --repo $REPO"
+  echo "Creating Cloud Scheduler job..."
+  gcloud scheduler jobs create http "$SCHEDULER_JOB" "${SCHEDULER_FLAGS[@]}"
 fi
 
-echo "Dashboard URL: $SERVICE_URL"
-echo "Google OAuth redirect URI: $GOOGLE_REDIRECT_URI"
-echo "Add that redirect URI to the Google OAuth Web client. The app's Gmail connection will not work until that is done."
-echo "The scheduled mailbox worker checks the Neon queue every 15 minutes via GitHub Actions."
+echo
+echo "Dashboard URL: $SERVICE_URL_PUBLIC"
+echo "Gmail OAuth redirect URI: $GOOGLE_REDIRECT_URI"
+echo "Add that redirect URI to the Google OAuth Web client to enable Gmail."
+echo "Cloud Scheduler now starts the Cloud Run worker every 15 minutes in Asia/Kolkata."
+echo "The worker performs actual mailbox syncs at the saved times (default 08:00, 11:00, 14:00, 17:00) and handles manual Sync Now jobs."
+echo "The GitHub NEON_DATABASE_URL secret you added earlier is not needed for the primary scheduler; you may leave it there."
 echo "Review Cloud Billing and set a budget alert; free-tier limits are not a hard spending cap."
 unset NEON_DATABASE_URL BOOTSTRAP_PASSWORD GOOGLE_CLIENT_SECRET JWT_SECRET FIELD_ENCRYPTION_KEY

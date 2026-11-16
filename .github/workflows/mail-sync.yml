@@ -1,18 +1,10 @@
-name: Email mailbox background sync
+name: Optional manual mailbox sync diagnostic
 
 on:
-  schedule:
-    # Check for due mailbox schedules and manually queued syncs every 15 minutes.
-    - cron: "3,18,33,48 * * * *"
-      timezone: "Asia/Kolkata"
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: email-assistant-neon-mail-sync
-  cancel-in-progress: false
 
 jobs:
   sync:
@@ -31,13 +23,13 @@ jobs:
       MAX_MESSAGES_PER_SYNC: "500"
     steps:
       - uses: actions/checkout@v4
-      - name: Check private runtime secrets
+      - name: Check optional diagnostic secrets
         id: secrets
         shell: bash
         run: |
           if [[ -z "${DATABASE_URL}" || -z "${FIELD_ENCRYPTION_KEY}" ]]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Add NEON_DATABASE_URL and EMAIL_ASSISTANT_FIELD_KEY under repository Settings > Secrets and variables > Actions to enable mailbox sync."
+            echo "::notice::This optional manual diagnostic needs NEON_DATABASE_URL and EMAIL_ASSISTANT_FIELD_KEY Actions secrets. The primary schedule runs in Cloud Scheduler."
           else
             if { [[ -n "${GOOGLE_CLIENT_ID}" ]] && [[ -z "${GOOGLE_CLIENT_SECRET}" ]]; } || { [[ -z "${GOOGLE_CLIENT_ID}" ]] && [[ -n "${GOOGLE_CLIENT_SECRET}" ]]; }; then
               echo "::error::Both Gmail OAuth secrets must be configured together."
@@ -52,6 +44,6 @@ jobs:
       - name: Install backend dependencies
         if: steps.secrets.outputs.configured == 'true'
         run: pip install -r requirements.txt
-      - name: Run due syncs and queued jobs
+      - name: Run one-shot worker diagnostic
         if: steps.secrets.outputs.configured == 'true'
         run: python -m app.worker --scheduled-once
