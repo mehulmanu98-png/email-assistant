@@ -8,7 +8,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.main import app
 import app.main as main_module
-from app.models import User, EmailAccount, EmailMessage, ReplyDraft, AIConversation
+from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, AIConversation
 from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
 
@@ -443,5 +443,87 @@ def test_original_attachment_view_does_not_change_email_read_state(monkeypatch):
             stored = db.get(EmailMessage, message_id)
             assert stored is not None
             assert stored.is_read is False
+        finally:
+            db.close()
+
+
+def test_forward_draft_uses_source_account_separate_thread_and_explicit_approval(monkeypatch):
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"forward-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            source = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="gmail-forward-source",
+                thread_key="gmail-original-thread",
+                sender="sender@example.com", recipients=account.email,
+                subject="Original contract", body_text="Original contract body",
+                has_attachments=True,
+            )
+            db.add(source)
+            db.commit()
+            db.refresh(source)
+            message_id = source.id
+            source_account = account.email
+        finally:
+            db.close()
+
+        created = client.post(f"/api/messages/{message_id}/forward")
+        assert created.status_code == 200
+        forward = created.json()
+        assert forward["from_account"] == source_account
+        assert forward["to"] == []
+        assert forward["include_attachments"] is True
+        assert forward["subject"] == "Fwd: Original contract"
+
+        saved = client.patch(f"/api/forward-drafts/{forward['id']}", json={
+            "to": ["recipient@example.com"],
+            "cc": [],
+            "bcc": [],
+            "subject": forward["subject"],
+            "body": "Please review this.",
+            "include_attachments": True,
+        })
+        assert saved.status_code == 200
+
+        denied = client.post(f"/api/forward-drafts/{forward['id']}/send", json={
+            "confirm_send": False,
+            "expected_updated_at": saved.json()["updated_at"],
+        })
+        assert denied.status_code == 400
+
+        calls = []
+        def fake_send(db_arg, account_arg, to, cc, bcc, subject, cover, source_arg, include_attachments):
+            calls.append((account_arg.email, to, subject, cover, source_arg.thread_key, include_attachments))
+            return "gmail-forwarded-message-id"
+        monkeypatch.setattr(main_module, "send_gmail_forward", fake_send)
+
+        sent = client.post(f"/api/forward-drafts/{forward['id']}/send", json={
+            "confirm_send": True,
+            "expected_updated_at": saved.json()["updated_at"],
+        })
+        assert sent.status_code == 200
+        assert sent.json()["provider_accepted"] is True
+        assert sent.json()["delivery_confirmed"] is False
+        assert calls == [(
+            source_account, ["recipient@example.com"], "Fwd: Original contract",
+            "Please review this.", "gmail-original-thread", True
+        )]
+
+        db = SessionLocal()
+        try:
+            stored = db.get(ForwardDraft, forward["id"])
+            assert stored is not None
+            assert stored.status == "sent"
+            assert stored.provider_sent_id == "gmail-forwarded-message-id"
         finally:
             db.close()
