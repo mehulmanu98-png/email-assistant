@@ -444,21 +444,16 @@ def message_attachment(
     except Exception as exc:
         raise HTTPException(502, f"Original attachment could not be retrieved ({type(exc).__name__}).")
 
-    mime_type = attachment["mime_type"] or "application/octet-stream"
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9!#    mime_type = attachment["mime_type"] or "application/octet-stream"
-    can_inline = mime_type == "application/pdf" or mime_type.startswith("image/")
-    disposition = "inline" if inline and can_inline else "attachment"
-    filename = str(attachment["filename"] or "attachment").replace("\\r", "_").replace("\\n", "_").replace('"', "_")
-    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#    mime_type = attachment["mime_type"] or "application/octet-stream"
-    can_inline = mime_type == "application/pdf" or mime_type.startswith("image/")
-    disposition = "inline" if inline and can_inline else "attachment"
-    filename = str(attachment["filename"] or "attachment").replace("\\r", "_").replace("\\n", "_").replace('"', "_")
-    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"^_.+-]*", mime_type):
+    mime_type = str(attachment.get("mime_type") or "application/octet-stream")
+    if "/" not in mime_type or any(ch.isspace() or ord(ch) < 33 or ord(ch) > 126 for ch in mime_type):
         mime_type = "application/octet-stream"
-    can_inline = mime_type == "application/pdf" or mime_type in {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+    preview_types = {"application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+    can_inline = mime_type in preview_types
     disposition = "inline" if inline and can_inline else "attachment"
-    filename = str(attachment["filename"] or "attachment").replace(chr(13), "_").replace(chr(10), "_").replace('"', "_").replace("/", "_").replace(chr(92), "_")
-    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename, safe='')}"
+    filename = str(attachment.get("filename") or "attachment")
+    filename = filename.replace(chr(13), "_").replace(chr(10), "_").replace('"', "_").replace("/", "_").replace(chr(92), "_")
+    encoded_filename = quote(filename, safe="")
+    content_disposition = f"{disposition}; filename*=UTF-8''{encoded_filename}"
     return Response(
         content=attachment["data"],
         media_type=mime_type,
