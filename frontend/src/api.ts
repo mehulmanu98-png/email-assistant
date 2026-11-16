@@ -41,5 +41,8 @@ export const api = {
   conversations: () => request<any[]>("/conversations"),
   newConversation: (title:string) => request<any>("/conversations",{method:"POST",body:JSON.stringify({title})}),
   conversation: (id:number) => request<any>("/conversations/"+id),
+  emailThreadLink: (messageId:number) => request<any>("/messages/"+messageId+"/conversation"),
+  linkEmailThread: (messageId:number,conversationId:number,auto_update=true) => request<any>("/messages/"+messageId+"/conversation",{method:"POST",body:JSON.stringify({conversation_id:conversationId,auto_update})}),
+  unlinkEmailThread: (messageId:number) => request<any>("/messages/"+messageId+"/conversation",{method:"DELETE"}),
   sendMessage: (id:number,content:string) => request<any>("/conversations/"+id+"/messages",{method:"POST",body:JSON.stringify({content})})
 };
