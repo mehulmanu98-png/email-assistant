@@ -992,3 +992,90 @@ def test_manual_sync_keeps_queued_job_when_cloud_trigger_is_not_configured(monke
             assert len(queued) == 1
         finally:
             db.close()
+
+
+def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
+    from app.models import LoginThrottle
+    from app.main import _login_identifier_hash
+
+    email = f"unknown-{uuid.uuid4().hex}@example.com"
+    with TestClient(app) as client:
+        for attempt in range(5):
+            failed = client.post("/api/auth/login", json={
+                "email": email, "password": "not-the-correct-password",
+            })
+            assert failed.status_code == 401
+
+        blocked = client.post("/api/auth/login", json={
+            "email": email, "password": "not-the-correct-password",
+        })
+        assert blocked.status_code == 429
+        assert int(blocked.headers["retry-after"]) > 0
+
+        db = SessionLocal()
+        try:
+            throttle = db.scalar(select(LoginThrottle).where(
+                LoginThrottle.identifier_hash == _login_identifier_hash(email)
+            ))
+            assert throttle is not None
+            throttle.window_started_at = datetime.now(timezone.utc) - timedelta(minutes=16)
+            throttle.blocked_until = datetime.now(timezone.utc) - timedelta(seconds=1)
+            db.commit()
+        finally:
+            db.close()
+
+        reset_window = client.post("/api/auth/login", json={
+            "email": email, "password": "not-the-correct-password",
+        })
+        assert reset_window.status_code == 401
+
+
+def test_successful_login_clears_failed_login_counter():
+    from app.models import LoginThrottle
+    from app.main import _login_identifier_hash
+
+    identifier_hash = _login_identifier_hash(settings.bootstrap_email)
+    with TestClient(app) as client:
+        failed = client.post("/api/auth/login", json={
+            "email": settings.bootstrap_email, "password": "wrong-password",
+        })
+        assert failed.status_code == 401
+
+        successful = client.post("/api/auth/login", json={
+            "email": settings.bootstrap_email, "password": settings.bootstrap_password,
+        })
+        assert successful.status_code == 200
+
+        db = SessionLocal()
+        try:
+            throttle = db.scalar(select(LoginThrottle).where(
+                LoginThrottle.identifier_hash == identifier_hash
+            ))
+            assert throttle is None
+        finally:
+            db.close()
+
+
+def test_origin_guard_rejects_missing_and_cross_origin_production_mutations(monkeypatch):
+    with TestClient(app) as client:
+        monkeypatch.setattr(main_module.settings, "app_env", "production")
+        monkeypatch.setattr(main_module.settings, "frontend_origin", "https://email.example.com")
+
+        missing = client.post("/api/auth/logout")
+        assert missing.status_code == 403
+
+        foreign = client.post(
+            "/api/auth/logout",
+            headers={"Origin": "https://attacker.example"},
+        )
+        assert foreign.status_code == 403
+
+        same_origin = client.post(
+            "/api/auth/logout",
+            headers={"Origin": "https://email.example.com"},
+        )
+        assert same_origin.status_code == 200
+
+        # Enrolled Apple Shortcuts use device tokens rather than browser cookies.
+        device_request = client.post("/api/apple/device/commands/poll")
+        assert device_request.status_code == 401
