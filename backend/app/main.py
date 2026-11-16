@@ -677,7 +677,7 @@ def create_forward_draft(
         EmailMessage.id == message_id,
         EmailMessage.user_id == user.id,
         EmailMessage.is_trashed.is_(False),
-    ))
+    ).with_for_update())
     if not source:
         raise HTTPException(404, "Email not found")
     account = db.scalar(select(EmailAccount).where(
@@ -686,6 +686,13 @@ def create_forward_draft(
     ))
     if not account:
         raise HTTPException(409, "The original receiving account is unavailable.")
+    unresolved = db.scalar(select(ForwardDraft).where(
+        ForwardDraft.message_id == message_id,
+        ForwardDraft.user_id == user.id,
+        ForwardDraft.status.in_(["sending", "send_uncertain"]),
+    ).order_by(desc(ForwardDraft.updated_at)))
+    if unresolved:
+        raise HTTPException(409, "A previous forward has an uncertain send result. Check the source account's Sent folder before creating or sending another forward.")
     draft = db.scalar(select(ForwardDraft).where(
         ForwardDraft.message_id == message_id,
         ForwardDraft.user_id == user.id,
