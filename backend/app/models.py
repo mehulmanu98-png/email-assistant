@@ -123,11 +123,14 @@ class EmailThreadLink(Base):
 class EmailConversationItem(Base):
     __tablename__ = "email_conversation_items"
     id: Mapped[int] = mapped_column(primary_key=True)
-    link_id: Mapped[int] = mapped_column(ForeignKey("email_thread_links.id", ondelete="CASCADE"), index=True)
+    # Keep the deduplication ledger when a thread is unlinked. Unlinking sets
+    # link_id to NULL; it does not erase evidence of context already appended.
+    link_id: Mapped[int | None] = mapped_column(ForeignKey("email_thread_links.id", ondelete="SET NULL"), nullable=True, index=True)
+    conversation_id: Mapped[int] = mapped_column(ForeignKey("ai_conversations.id", ondelete="CASCADE"), index=True)
     message_id: Mapped[int | None] = mapped_column(ForeignKey("email_messages.id", ondelete="SET NULL"), nullable=True)
     provider_message_id: Mapped[str] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    __table_args__ = (Index("ix_email_conversation_item_link_message", "link_id", "message_id", unique=True),)
+    __table_args__ = (Index("ix_email_conversation_item_conversation_message", "conversation_id", "message_id", unique=True),)
 
 class SyncJob(Base):
     __tablename__ = "sync_jobs"
