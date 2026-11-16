@@ -14,7 +14,6 @@ _METADATA_TOKEN_URL = (
     "http://metadata.google.internal/computeMetadata/v1/"
     "instance/service-accounts/default/token"
 )
-_CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 
 
 def trigger_mailbox_worker() -> bool:
@@ -32,7 +31,6 @@ def trigger_mailbox_worker() -> bool:
 
     token_response = httpx.get(
         _METADATA_TOKEN_URL,
-        params={"scopes": _CLOUD_PLATFORM_SCOPE},
         headers={"Metadata-Flavor": "Google"},
         timeout=4.0,
     )
