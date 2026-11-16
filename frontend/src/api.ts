@@ -20,6 +20,7 @@ export const api = {
   disconnectAccount: (id:number) => request<any>("/accounts/"+id,{method:"DELETE"}),
   messages: (q:string) => request<any[]>("/messages?q="+encodeURIComponent(q)),
   message: (id:number) => request<any>("/messages/"+id),
+  thread: (id:number) => request<any>("/messages/"+id+"/thread"),
   attachments: (id:number) => request<any>("/messages/"+id+"/attachments"),
   attachmentUrl: (id:number,index:number,inline=false) => API+"/messages/"+id+"/attachments/"+index+(inline?"?inline=true":""),
   markRead: (id:number) => request<any>("/messages/"+id+"/read",{method:"POST"}),
