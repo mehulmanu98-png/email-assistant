@@ -116,3 +116,20 @@
 .thread-message pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.65 'DM Sans';color:#566171;margin:0}
 .thread-attachment-note{display:block;color:#8a744e;margin-top:9px;font-size:10px}
 @media(max-width:700px){.full-thread-heading{align-items:flex-start;flex-direction:column}.thread-message-head{flex-direction:column;gap:4px}.thread-message-head small{text-align:left}}
+
+
+/* New outbound email composer. */
+.compose-modal{width:min(640px,100%);max-height:92vh;overflow:auto}
+.compose-modal input,.compose-modal select,.compose-modal textarea{border:1px solid #e2e6eb;background:#fff;padding:10px;border-radius:8px;outline:none;font-size:12px;width:100%}
+.compose-modal textarea{resize:vertical;font:12px/1.6 'DM Sans'}
+.compose-modal label{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.required-note{color:#9b6a33;font-size:10px;font-weight:600}
+.saved-outbound-list{display:grid;gap:6px;padding:10px 0;border-top:1px solid #edf0f3;border-bottom:1px solid #edf0f3}
+.saved-outbound-list> b{font-size:11px}
+.saved-outbound-item{display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:left;padding:9px 10px;border:1px solid #e8ecf0;border-radius:8px;background:#fafbfc;color:#425064}
+.saved-outbound-item span:first-child{min-width:0}
+.saved-outbound-item b,.saved-outbound-item small{display:block}
+.saved-outbound-item b{font-size:11px;overflow-wrap:anywhere}
+.saved-outbound-item small{font-size:9px;color:#8993a0;margin-top:3px}
+.saved-outbound-item span:last-child{font-size:10px;font-weight:700;white-space:nowrap}
+.compose-actions{justify-content:flex-end;margin-top:6px}
