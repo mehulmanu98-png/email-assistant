@@ -24,7 +24,8 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
 | Sync job visibility in dashboard | Built | Recent job activity shown under Accounts & Settings. |
 | Cloud Run dashboard/API deployment | Prepared | Deployment script is ready. No completed Cloud Run deployment is recorded in the repository; confirm GCP project and billing state in the console. |
-| Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. |
+| Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. Runtime service identity and scheduler identity each receive job-scoped run invoker permission. |
+| Immediate manual worker trigger | Built in feature branch | Sync Now and first account sync request the Cloud Run worker immediately after the queue commit; the scheduler remains the fallback. Live cloud IAM acceptance pending. |
 | Cloud Scheduler background trigger | Prepared | One job every 15 minutes in Asia/Kolkata; can run with laptop off. |
 | Neon database | Created | Free-tier Email Assistant project and production branch are ready. Direct inspection on 16 Nov 2026 found no application tables; first successful app startup should initialise them. |
 | Per-email card actions | Built in feature branch | Each email card has its own View Original, Prepare Reply, Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question controls. AI actions report the approval blocker without returning fabricated output. |
