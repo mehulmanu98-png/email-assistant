@@ -204,7 +204,9 @@ def list_gmail_attachments(db: Session, account: EmailAccount, provider_id: str)
     for index, item in enumerate(parts):
         size = item["size"]
         if not size and item["data"]:
-            size = len(_decode_bytes(item["data"]))
+            encoded = item["data"]
+            padding = len(encoded) - len(encoded.rstrip("="))
+            size = max(0, (len(encoded) * 3 // 4) - padding)
         mime_type = item["mime_type"]
         result.append({
             "index": index,
@@ -233,7 +235,8 @@ def get_gmail_attachment(db: Session, account: EmailAccount, provider_id: str, i
     if index < 0 or index >= len(parts):
         raise LookupError("Attachment not found.")
     item = parts[index]
-    if item["size"] > MAX_ATTACHMENT_BYTES:
+    encoded_limit = ((MAX_ATTACHMENT_BYTES + 2) // 3) * 4 + 4
+    if item["size"] > MAX_ATTACHMENT_BYTES or (item["data"] and len(item["data"]) > encoded_limit):
         raise ValueError("This attachment exceeds the 25 MB in-app download limit.")
     data = _decode_bytes(item["data"]) if item["data"] else b""
     if not data and item["attachment_id"]:
