@@ -1109,3 +1109,23 @@ def test_origin_guard_rejects_missing_and_cross_origin_production_mutations(monk
         # Enrolled Apple Shortcuts use device tokens rather than browser cookies.
         device_request = client.post("/api/apple/device/commands/poll")
         assert device_request.status_code == 401
+
+
+
+def test_private_api_responses_are_not_cacheable_and_include_security_headers(monkeypatch):
+    with TestClient(app) as client:
+        monkeypatch.setattr(main_module.settings, "app_env", "production")
+
+        public_health = client.get("/api/health")
+        assert public_health.status_code == 200
+        assert public_health.headers["cache-control"] == "private, no-store, max-age=0"
+        assert public_health.headers["pragma"] == "no-cache"
+        assert public_health.headers["x-content-type-options"] == "nosniff"
+        assert public_health.headers["referrer-policy"] == "no-referrer"
+        assert public_health.headers["x-frame-options"] == "DENY"
+        assert public_health.headers["cross-origin-resource-policy"] == "same-origin"
+        assert public_health.headers["strict-transport-security"].startswith("max-age=31536000")
+
+        unauthenticated = client.get("/api/messages")
+        assert unauthenticated.status_code == 401
+        assert unauthenticated.headers["cache-control"] == "private, no-store, max-age=0"

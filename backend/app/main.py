@@ -64,6 +64,22 @@ async def origin_guard(request: Request, call_next):
                 return Response("Origin header is required", status_code=403)
     return await call_next(request)
 
+@app.middleware("http")
+async def private_api_response_headers(request: Request, call_next):
+    """Prevent browsers and intermediaries from retaining private mailbox API content."""
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "private, no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
+        if settings.app_env == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 @app.on_event("startup")
 def startup():
     if settings.app_env == "production":
