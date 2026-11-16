@@ -124,6 +124,13 @@ create_service_account() {
 create_service_account "$RUNTIME_SA_NAME" "$RUNTIME_SA"
 create_service_account "$SCHEDULER_SA_NAME" "$SCHEDULER_SA"
 
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+SCHEDULER_AGENT="service-${PROJECT_NUMBER}@gcp-sa-cloudscheduler.iam.gserviceaccount.com"
+gcloud iam service-accounts add-iam-policy-binding "$SCHEDULER_SA" \
+  --member="serviceAccount:$SCHEDULER_AGENT" \
+  --role="roles/iam.serviceAccountTokenCreator" \
+  --project "$PROJECT_ID" >/dev/null
+
 put_secret() {
   local name="$1" value="$2"
   if gcloud secrets describe "$name" --project "$PROJECT_ID" >/dev/null 2>&1; then
