@@ -385,9 +385,9 @@ def test_waiting_for_user_tasks_do_not_consume_active_execution_slots():
             assert created.status_code == 200
             assert created.json()["status"] == "waiting_for_user"
 
-        health = client.get("/api/health")
-        assert health.status_code == 200
-        assert health.json()["active_tasks"] == 0
+        dashboard = client.get("/api/dashboard")
+        assert dashboard.status_code == 200
+        assert dashboard.json()["active_tasks"] == 0
 
 
 def test_original_attachment_view_does_not_change_email_read_state(monkeypatch):
