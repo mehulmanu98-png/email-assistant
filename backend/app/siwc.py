@@ -64,6 +64,10 @@ class SIWCUsageLimitReached(SIWCRequestError):
     pass
 
 
+class SIWCPlanUsageUnavailable(SIWCRequestError):
+    pass
+
+
 def default_credentials_path() -> Path:
     configured = os.environ.get("SIWC_CREDENTIALS_PATH", "").strip()
     if configured:
@@ -257,6 +261,13 @@ def _response_error(response: httpx.Response) -> SIWCRequestError:
             error_code=str(error_code) if error_code else None,
             request_id=request_id,
         )
+    if error_code in {"subscription_sharing_usage_unavailable", "insufficient_scope"}:
+        return SIWCPlanUsageUnavailable(
+            message + " ChatGPT plan usage is unavailable for this session; reconnect or review account access.",
+            status_code=response.status_code,
+            error_code=str(error_code),
+            request_id=request_id,
+        )
     return SIWCRequestError(
         message,
         status_code=response.status_code,
@@ -356,6 +367,54 @@ def get_access_token(
                     "The refreshed ChatGPT session no longer grants plan usage. AI work is paused."
                 )
             return str(record["access_token"])
+    finally:
+        if owns_client:
+            client.close()
+
+
+def revoke_credentials(
+    path: str | Path | None = None,
+    *,
+    http_client: httpx.Client | None = None,
+) -> bool:
+    """Remove local credentials and attempt remote refresh-token revocation.
+
+    Returns True only when OpenAI confirms remote revocation. An explicit local
+    disconnect always removes the VM's local credential file, even if the
+    remote revocation endpoint cannot be reached; False means remote revocation
+    was not confirmed and must be disclosed to the user.
+    """
+    target = Path(path).expanduser() if path else default_credentials_path()
+    client = http_client or httpx.Client(timeout=20)
+    owns_client = http_client is None
+    remote_revoked = False
+    try:
+        with _credential_lock(target):
+            try:
+                record = load_credentials(target)
+            except SIWCCredentialsMissing:
+                return True
+            refresh_token = str(record.get("refresh_token") or "")
+            if refresh_token:
+                try:
+                    discovery = client.get(OPENAI_DISCOVERY_URL)
+                    discovery.raise_for_status()
+                    endpoint = discovery.json().get("revocation_endpoint")
+                    if endpoint:
+                        response = client.post(
+                            str(endpoint),
+                            data={
+                                "token": refresh_token,
+                                "token_type_hint": "refresh_token",
+                                "client_id": str(record.get("client_id") or ""),
+                            },
+                            timeout=20,
+                        )
+                        remote_revoked = response.status_code == 200
+                except httpx.HTTPError:
+                    remote_revoked = False
+            target.unlink(missing_ok=True)
+            return remote_revoked
     finally:
         if owns_client:
             client.close()
@@ -463,6 +522,18 @@ def create_response(
                     result = event.get("response") or {}
                     error = result.get("error") or {}
                     failure_code = str(error.get("code") or "response_failed")
+                    if failure_code == "subscription_sharing_usage_limit_exceeded":
+                        raise SIWCUsageLimitReached(
+                            "ChatGPT plan usage limit reached. Pause AI work and check ChatGPT Settings > Usage.",
+                            request_id=response.headers.get("x-request-id"),
+                            error_code=failure_code,
+                        )
+                    if failure_code == "subscription_sharing_usage_unavailable":
+                        raise SIWCPlanUsageUnavailable(
+                            "ChatGPT plan usage is unavailable for this session. AI work is paused.",
+                            request_id=response.headers.get("x-request-id"),
+                            error_code=failure_code,
+                        )
                     raise SIWCRequestError("ChatGPT response failed: " + failure_code,
                                            request_id=response.headers.get("x-request-id"),
                                            error_code=failure_code)
