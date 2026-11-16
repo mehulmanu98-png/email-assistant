@@ -46,37 +46,58 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
 - App-managed email-thread linking with one-time history backfill, per-message deduplication, automatic append on subsequent mailbox syncs, and unlink/relink history retention.
 - Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts.
-- Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show the pending commercial approval status without fabricating an answer.
+- Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show that AI is not connected yet; no canned answer is fabricated.
+- On-demand full-thread retrieval from source providers, chronological rendering and explicit partial-history warnings; tests assert thread loading does not change read flags.
+- New outbound email composer with explicit From selection, internal draft, approval before sending and uncertainty protection.
 
 ### Intentionally not active yet
 
 - AI current-message and entire-thread summaries, AI-generated reply drafting, Ask a Question responses, automatic priority assessment, automatic follow-up extraction/updates, attachment-content analysis, and delegated AI task execution.
+- SIWC open-source OAuth/PKCE client, VM credential import/refresh manager, Responses API wrapper, background AI consent UI/record, AI worker and AI workflow implementation are not built yet.
 - The Apple Shortcut itself has not been installed/enrolled and tested against a live Mac/iPhone; the server-side command queue alone does not create native Apple Notes or Reminders.
 - Live production deployment and real-provider acceptance testing remain pending.
 - Do not describe any of these pending capabilities as working features until the relevant approval, device/account setup, implementation and tests are complete.
 
-## Important AI integration and licensing blocker
+## AI integration path and safeguards
 
-OpenAI's current Help Center says ChatGPT Go, Plus, Pro and Business users may use included plan usage in participating commercial apps that support it, subject to app eligibility and the user's separate authorization. This Email Assistant is not currently an approved participating app.
+The earlier handoff incorrectly treated commercial SIWC partner approval as the only way to use ChatGPT plan usage. OpenAI's current developer documentation separately describes an open-source client flow and a self-hosted-VM transfer procedure. This project is MIT-licensed and is a private, single-user open-source application; it will implement the published protocol independently and will not copy or bundle the official DevKit, which is under a Noncommercial License.
 
-The Sign in with ChatGPT Terms effective 4 November 2026 state that persistent Authentication Tokens must be stored locally and under the user's control, not in a remote or managed environment (section 1). ChatGPT plan requests must come from the user's local runtime or a remote runtime that only the user controls, and background use requires express consent (section 3.1). The planned Cloud Run worker therefore cannot assume it may persist SIWC credentials in Neon or Google Secret Manager. Obtain written OpenAI clarification of the specific remote runtime and token-storage model before designing unattended AI processing.
+### Documented integration shape
 
-The official open-source Sign in with ChatGPT DevKit is also under a **Noncommercial License v1.0**. Its definition of Noncommercial Purpose excludes development, testing, distribution or operation by or for a business, employer or client in connection with their operations or commercial advantage, even where no fee is charged. This Email Assistant is intended to process business correspondence. Therefore:
+1. Prepare a stable opaque ext_agent_host_id for the user's Mac sign-in helper and a separate stable host ID for the dedicated AI VM.
+2. On the Mac, run an app-owned loopback callback and OAuth authorization-code flow with state, OIDC nonce, PKCE S256, and the documented dynamic client registration (dynamic_agent_client) for the first sign-in. Use the issued client ID on subsequent sign-ins; no partner API key or client secret is part of this open-source flow.
+3. Request identity scopes and the plan-use permission: openid profile email offline_access resource.invoke chatgpt.tokens.use.direct, with resource=https://api.openai.com/v1.
+4. Exchange the authorization code, validate the ID token signature and claims against OpenAI's published JWKS, validate the callback state/nonce and issued client ID, and confirm the token response actually grants chatgpt.tokens.use.direct. A valid identity token alone is not enough to allow inference.
+5. Transfer the protected credential file to the user's dedicated self-hosted VM over a secure channel such as SSH/IAP. The VM keeps its own stable host ID and stores the credential file on its own local filesystem with owner-only permissions; the VM owns subsequent token refreshes. A rotated refresh token and access-token expiry must be updated atomically.
+6. The VM requests only models returned for the user's signed-in account. Inference uses POST https://api.openai.com/v1/responses with store:false, stream:true, and completes only on response.completed.
 
-- Do not embed or deploy the official open-source DevKit for this business-use purpose.
-- Do not claim that the user's Go plan is categorically ineligible; that statement was corrected in the app.
-- The supported next path is to request OpenAI's commercial-integration approval and obtain written confirmation that this single-user business-email app qualifies, which runtime model is approved, and how user-controlled token persistence can work with the laptop-off requirement.
-- Until approval and an architecture permitted by the current Terms are confirmed, AI tasks must remain Waiting for User / blocked with a clear reason.
-- Do not persist SIWC access or refresh credentials in Neon, Google Secret Manager, source control, URLs or logs. Do not assume a remote managed Cloud Run service may persist them; the Terms require persistent token storage to be local and user-controlled.
-- Do not work around the licence or hosted-app approval requirements by copying SDK code or moving protected credentials through an undocumented method.
-- No OpenAI API billing, credit usage or paid fallback may be enabled.
+### Security, consent and limits
+
+- Persistent SIWC tokens never go in Neon/Postgres, Google Secret Manager, Cloud Run environment variables, source control, browser storage, URLs, logs or chat messages.
+- The VM must be a dedicated remote runtime the user controls. The credential file must remain local to that VM's filesystem, not a managed secret store. If this condition or current OpenAI terms cannot be satisfied, do not enable plan usage.
+- OpenAI explicitly documents the self-hosted VM transfer flow. Its current documentation warns that host-specific usage attribution and revocation for transferred sessions are not yet available.
+- The user must expressly authorise background AI work in the OAuth plan-use consent and in the application's own revocable background-processing controls. Each processing category must be disclosed.
+- If the required plan-use scope is missing, do not issue inference. If plan usage is ineligible or exhausted, pause AI work and show the actual blocker; do not switch to API billing, credits, another account, another provider or a paid fallback.
+- The official open-source Sign in with ChatGPT DevKit is not used or copied because its Noncommercial License excludes business use. The project will implement the documented public OAuth/Responses protocol independently.
+- SIWC does not grant access to native ChatGPT chats or memories. Email Assistant conversation history stays in this app's own database.
+
+### Infrastructure and costs
+
+The planned AI worker is a self-hosted VM in the user's own Google Cloud project, separate from Cloud Run and Neon. The Cloud Run service continues to host the dashboard/API and mailbox sync. The VM polls durable AI task records from Neon but keeps SIWC credentials only on its own local disk.
+
+Google's Always Free Compute Engine e2-micro is available only in us-west1, us-central1 or us-east1, includes up to 30 GB-months standard persistent disk and 1 GB/month of outbound transfer from North America. This is not proof that the full VM network path is free. IAP can administer a VM without a public IP, but a separate outbound route is still required. Confirm the billing account, region, egress, IP/NAT and storage costs before provisioning any resource; obtain explicit user approval for any potential charge.
 
 References:
-- https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
-- https://openai.com/form/sign-in-with-chatgpt/
-- https://github.com/openai/sign-in-with-chatgpt-devkit
-- https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/LICENSE
 - https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery
+- https://developers.openai.com/siwc/token-sharing-open-source/token-reference
+- https://openai.com/policies/sign-in-with-chatgpt-terms/
+- https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
+- https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/LICENSE
+- https://docs.cloud.google.com/free/docs/free-cloud-features
+- https://docs.cloud.google.com/iap/docs/using-tcp-forwarding
 
 ## Infrastructure state checked on 16 November 2026
 
@@ -103,17 +124,17 @@ References:
 1. **Google Cloud deployment:** confirm/create the Google Cloud project, attach billing, review the costs and budget alert, then run `bash scripts/deploy-cloud-run.sh` from the repository root in Google Cloud Shell or a machine with `gcloud`. Enter the Neon URL and dashboard login only in the private terminal prompts. The script preserves existing persistent secrets on redeployment.
 2. **Gmail (only if required):** create a Google OAuth Web client, add the exact callback URI printed by the deployment script, then redeploy with the client ID and secret. Do not put OAuth secrets in Git.
 3. **Live acceptance:** sign into the deployed dashboard, connect a non-critical test iCloud mailbox and/or Gmail account, run Sync Now, verify messages, read-state, Trash and a test reply to an address you control. The app has not passed live provider acceptance until this is done.
-4. **Commercial AI access:** submit the OpenAI commercial-integration interest form and obtain written approval/architecture requirements before resuming AI integration. No ChatGPT password, browser cookie, session cookie or token file should be shared in chat.
+4. **ChatGPT plan authorisation and VM transfer:** after the independent SIWC client and VM are built, complete sign-in on the Mac, review and explicitly grant plan-use/background permissions, and transfer the protected credentials to the user's VM using the documented secure method. Never share the credential file in chat. This action remains pending; do not enable AI inference before the VM verifies the issued client ID, identity and required scope.
 
 The assistant should continue code, tests and documentation that do not require these actions. Do not stop independent work while any owner action is pending.
 
 ## Next engineering priorities
 
-1. Obtain written OpenAI commercial-integration approval and its supported remote-hosted token/usage architecture; until then, keep all AI actions blocked and do not add a paid API fallback.
-2. Complete a proper source-thread detail view and then implement the whole-trail summary only when an approved AI engine is available.
-3. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
-4. After AI approval, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
-5. Complete deployment, live iCloud/Gmail provider acceptance, backup/restore checks, rate limits, audit review and public-source security/licence review before relying on critical business email.
+1. Independently implement and test the documented SIWC open-source OAuth/PKCE client, strict ID-token/scope validation, secure local credential-file format and VM import/rotating-refresh path. Do not copy the DevKit.
+2. Build the dedicated user-controlled AI VM worker and durable Neon-backed AI job execution; implement the explicit, revocable background AI consent controls. Keep AI inference disabled pending the user's live OAuth consent and VM verification.
+3. Implement current-message and whole-thread summaries, contextual reply drafting, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution with source-grounding and usage-limit pause behaviour.
+4. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
+5. Complete cloud deployment, live iCloud/Gmail provider acceptance, VM cost review, backup/restore checks, rate limits, audit review and public-source security/licence review before relying on critical business email.
 
 ## CI and release discipline
 
