@@ -29,7 +29,7 @@ from .security import (
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
     DraftIn, ForwardDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn,
-    UserSettingsPatchIn, AppleEnrollmentCreateIn, AppleDeviceEnrollIn, AppleCommandIn,
+    UserSettingsPatchIn, ReadStateIn, AppleEnrollmentCreateIn, AppleDeviceEnrollIn, AppleCommandIn,
     AppleDeviceCommandResultIn
 )
 from .policy import effective_priority
@@ -469,6 +469,26 @@ def message_attachment(
     )
 
 
+def _confirm_provider_read_state(row: EmailMessage, db: Session, is_read: bool):
+    account = db.get(EmailAccount, row.account_id)
+    if not account:
+        raise HTTPException(409, "Source account is unavailable.")
+    try:
+        if account.provider == "icloud":
+            confirmed = set_icloud_read(account, row.provider_message_id, is_read)
+        elif account.provider == "gmail":
+            confirmed = set_gmail_read(db, account, row.provider_message_id, is_read)
+        else:
+            raise RuntimeError("Unsupported provider.")
+        if not confirmed:
+            raise RuntimeError("Provider did not confirm the read-state change.")
+    except Exception as exc:
+        raise HTTPException(502, f"Provider could not confirm the read-state change ({type(exc).__name__}).")
+    row.is_read = is_read
+    db.commit()
+    return {"is_read": is_read, "provider_sync": "confirmed"}
+
+
 @app.post("/api/messages/{message_id}/read")
 def mark_read(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = db.scalar(select(EmailMessage).where(
@@ -476,23 +496,20 @@ def mark_read(message_id: int, user: User = Depends(current_user), db: Session =
     ))
     if not row or row.is_trashed:
         raise HTTPException(404, "Email not found")
-    account = db.get(EmailAccount, row.account_id)
-    if not account:
-        raise HTTPException(409, "Source account is unavailable.")
-    try:
-        if account.provider == "icloud":
-            confirmed = set_icloud_read(account, row.provider_message_id, True)
-        elif account.provider == "gmail":
-            confirmed = set_gmail_read(db, account, row.provider_message_id, True)
-        else:
-            raise RuntimeError("Unsupported provider.")
-        if not confirmed:
-            raise RuntimeError("Provider did not confirm the read-state change.")
-    except Exception as exc:
-        raise HTTPException(502, f"Provider could not confirm the read-state change ({type(exc).__name__}).")
-    row.is_read = True
-    db.commit()
-    return {"is_read": True, "provider_sync": "confirmed"}
+    return _confirm_provider_read_state(row, db, True)
+
+
+@app.post("/api/messages/{message_id}/read-state")
+def update_read_state(
+    message_id: int, data: ReadStateIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    row = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id, EmailMessage.user_id == user.id
+    ))
+    if not row or row.is_trashed:
+        raise HTTPException(404, "Email not found")
+    return _confirm_provider_read_state(row, db, data.is_read)
 
 @app.delete("/api/messages/{message_id}")
 def delete_message(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):

@@ -6,6 +6,12 @@
 
 This file is the durable handoff for continuing development when a ChatGPT conversation reaches its length limit. The repository specifications remain the source of approved product requirements: `docs/functional-spec.md`, `docs/architecture.md`, and `docs/ui-spec.md`.
 
+## Transcript coverage note
+
+The PDF uploaded on 16 November 2026 is only a partial export: it contains 26 PDF pages, while the original ChatGPT transcript's printed page numbering reaches 130. The available extract reaches the beginning of the architecture discussion, so decisions made in the remaining pages have not yet been reviewed. Do not describe this as a complete transcript review.
+
+The available extract records an earlier inbox schedule of 08:00, 12:00 and 17:00 IST and initially mentions notifications for important emails. The current repository defaults are 08:00, 11:00, 14:00 and 17:00 Asia/Kolkata, and the current code intentionally disables proactive notifications. Reconcile these differences against the remaining transcript before changing production settings.
+
 ## Product decisions to preserve
 
 - Private, single-user Email Assistant. Public source code does not mean public mailbox data or a public service.
@@ -36,11 +42,18 @@ This file is the durable handoff for continuing development when a ChatGPT conve
 - Neon-backed sync jobs, retry/backoff, stale-job recovery and singleton worker lease.
 - Cloud Run deployment script, one-shot Cloud Run Job and Cloud Scheduler setup.
 - Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, edit, snooze, mark complete and remove tracking item without changing the email.
+- Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
+- Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
+- App-managed email-thread linking with one-time history backfill, per-message deduplication, automatic append on subsequent mailbox syncs, and unlink/relink history retention.
+- Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts.
+- Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show the pending commercial approval status without fabricating an answer.
 
 ### Intentionally not active yet
 
-- AI summaries/reply generation, automatic follow-up extraction, task execution, attachment download/preview, Forward, automatic project-conversation linking, and Apple Notes/Reminders device bridge.
-- These are not to be represented as working features until the relevant backend, user consent, provider integration and tests are complete.
+- AI current-message and entire-thread summaries, AI-generated reply drafting, Ask a Question responses, automatic priority assessment, automatic follow-up extraction/updates, attachment-content analysis, and delegated AI task execution.
+- The Apple Shortcut itself has not been installed/enrolled and tested against a live Mac/iPhone; the server-side command queue alone does not create native Apple Notes or Reminders.
+- Live production deployment and real-provider acceptance testing remain pending.
+- Do not describe any of these pending capabilities as working features until the relevant approval, device/account setup, implementation and tests are complete.
 
 ## Important AI integration and licensing blocker
 
@@ -94,12 +107,11 @@ The assistant should continue code, tests and documentation that do not require 
 
 ## Next engineering priorities
 
-1. Keep backend/frontend messages truthful about blocked AI capability and commercial approval.
-2. Add tests for the Follow-ups edit/snooze/complete/remove routes and UI/API contract.
-3. Complete the source-thread view, Forward and safe attachment viewing/download with explicit approval and safe rendering.
-4. Design automatic follow-up extraction and app-conversation linking only after the commercial AI route is approved.
-5. Design the Apple Notes/Reminders bridge using a user-enrolled Mac/iPhone Shortcut and signed/idempotent command receipts.
-6. Finish deployment, provider acceptance, backup/restore checks, rate limiting, audit review and public-source security/licence audit before relying on critical business email.
+1. Obtain written OpenAI commercial-integration approval and its supported remote-hosted token/usage architecture; until then, keep all AI actions blocked and do not add a paid API fallback.
+2. Complete a proper source-thread detail view and then implement the whole-trail summary only when an approved AI engine is available.
+3. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
+4. After AI approval, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
+5. Complete deployment, live iCloud/Gmail provider acceptance, backup/restore checks, rate limits, audit review and public-source security/licence review before relying on critical business email.
 
 ## CI and release discipline
 

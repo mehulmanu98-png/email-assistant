@@ -685,3 +685,59 @@ def test_apple_reminder_requires_due_time_and_uses_idempotency():
         assert valid.status_code == 200
         assert valid.json()["status"] == "pending_on_device"
         assert valid.json()["payload"]["due_at"].endswith("+00:00")
+
+
+def test_read_state_can_mark_email_read_and_unread_only_after_provider_confirmation(monkeypatch):
+    calls = []
+
+    def fake_set_read(db, account, provider_message_id, is_read):
+        calls.append((account.provider, provider_message_id, is_read))
+        return True
+
+    monkeypatch.setattr(main_module, "set_gmail_read", fake_set_read)
+
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"read-state-{uuid.uuid4().hex}@example.com",
+                connection_status="connected"
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            source = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="gmail-read-state-message",
+                thread_key="gmail-read-state-thread",
+                sender="sender@example.com", recipients=account.email,
+                subject="Read state test", body_text="Test body", is_read=True,
+            )
+            db.add(source)
+            db.commit()
+            db.refresh(source)
+            message_id = source.id
+        finally:
+            db.close()
+
+        unread = client.post(f"/api/messages/{message_id}/read-state", json={"is_read": False})
+        assert unread.status_code == 200
+        assert unread.json()["is_read"] is False
+
+        read = client.post(f"/api/messages/{message_id}/read-state", json={"is_read": True})
+        assert read.status_code == 200
+        assert read.json()["is_read"] is True
+
+        assert calls == [
+            ("gmail", "gmail-read-state-message", False),
+            ("gmail", "gmail-read-state-message", True),
+        ]
+        db = SessionLocal()
+        try:
+            saved = db.get(EmailMessage, message_id)
+            assert saved is not None and saved.is_read is True
+        finally:
+            db.close()
