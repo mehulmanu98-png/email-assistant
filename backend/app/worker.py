@@ -140,7 +140,7 @@ def run_once() -> bool:
         db.close()
 
 
-def recover_stale_jobs(stale_minutes: int = 45) -> int:
+def recover_stale_jobs(stale_minutes: int = WORKER_LEASE_MINUTES + 5) -> int:
     """Requeue jobs left running when an ephemeral runner was interrupted."""
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_minutes)
     db = SessionLocal()
