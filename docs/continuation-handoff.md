@@ -10,14 +10,14 @@ This file is the durable handoff for continuing development when a ChatGPT conve
 
 The PDF uploaded on 16 November 2026 is only a partial export: it contains 26 PDF pages, while the original ChatGPT transcript's printed page numbering reaches 130. The available extract reaches the beginning of the architecture discussion, so decisions made in the remaining pages have not yet been reviewed. Do not describe this as a complete transcript review.
 
-The available extract records an earlier inbox schedule of 08:00, 12:00 and 17:00 IST and initially mentions notifications for important emails. The current repository defaults are 08:00, 11:00, 14:00 and 17:00 Asia/Kolkata, and the current code intentionally disables proactive notifications. Reconcile these differences against the remaining transcript before changing production settings.
+The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specification also records these as the initial review times. The current code has been aligned to those project-specific defaults. The final product specification explicitly disables proactive notifications, so follow-up and task status is displayed inside the dashboard only.
 
 ## Product decisions to preserve
 
 - Private, single-user Email Assistant. Public source code does not mean public mailbox data or a public service.
 - React + TypeScript frontend; FastAPI backend; Neon PostgreSQL for persistent application data.
 - iCloud Mail via IMAP/SMTP and Gmail via Google OAuth/Gmail API.
-- Background mailbox sync is independent of the browser/Mac, with default review times 08:00, 11:00, 14:00 and 17:00 Asia/Kolkata.
+- Background mailbox sync is independent of the browser/Mac, with default review times 08:00, 12:00 and 17:00 Asia/Kolkata.
 - Reply All is the default. From remains the source account. Every send requires approval of the final saved draft. Uncertain sends must never be blindly retried.
 - Forward is a separate saved draft and send flow. It defaults to the source account, includes the original message text, optionally includes original attachments (25 MB aggregate limit), sends outside the source thread and requires explicit approval. Provider acceptance does not prove final delivery.
 - Opening an email detail may mark that exact provider copy read only after provider confirmation. Background sync and hidden-original viewing must not silently change read state.
