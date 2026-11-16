@@ -13,6 +13,7 @@ This file is the durable handoff for continuing development when a ChatGPT conve
 - iCloud Mail via IMAP/SMTP and Gmail via Google OAuth/Gmail API.
 - Background mailbox sync is independent of the browser/Mac, with default review times 08:00, 11:00, 14:00 and 17:00 Asia/Kolkata.
 - Reply All is the default. From remains the source account. Every send requires approval of the final saved draft. Uncertain sends must never be blindly retried.
+- Forward is a separate saved draft and send flow. It defaults to the source account, includes the original message text, optionally includes original attachments (25 MB aggregate limit), sends outside the source thread and requires explicit approval. Provider acceptance does not prove final delivery.
 - Opening an email detail may mark that exact provider copy read only after provider confirmation. Background sync and hidden-original viewing must not silently change read state.
 - No proactive notifications.
 - App-managed AI conversations are separate from normal ChatGPT conversations and memories.
@@ -31,6 +32,7 @@ This file is the durable handoff for continuing development when a ChatGPT conve
 - Incremental sync and provider message identity/deduplication.
 - Provider-confirmed read and Trash operations.
 - Reply All draft creation/editing and explicit send approval; uncertain send protection.
+- Separate forward draft persistence, editing, optional source-attachment inclusion, source-account locking, explicit approval and uncertain-send protection; Gmail forward MIME has a regression test to ensure it does not reuse the original thread ID.
 - Neon-backed sync jobs, retry/backoff, stale-job recovery and singleton worker lease.
 - Cloud Run deployment script, one-shot Cloud Run Job and Cloud Scheduler setup.
 - Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, edit, snooze, mark complete and remove tracking item without changing the email.
