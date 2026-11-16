@@ -7,6 +7,7 @@ import uuid
 from app.config import settings
 from app.db import SessionLocal
 from app.main import app
+import app.main as main_module
 from app.models import User, EmailAccount, EmailMessage, ReplyDraft, AIConversation
 from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
@@ -387,3 +388,60 @@ def test_waiting_for_user_tasks_do_not_consume_active_execution_slots():
         health = client.get("/api/health")
         assert health.status_code == 200
         assert health.json()["active_tasks"] == 0
+
+
+def test_original_attachment_view_does_not_change_email_read_state(monkeypatch):
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"attachment-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            source = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="gmail-attachment-source",
+                thread_key="gmail-attachment-thread",
+                sender="sender@example.com", recipients=account.email,
+                subject="Invoice attached", body_text="Please see the attached invoice.",
+                is_read=False, has_attachments=True,
+            )
+            db.add(source)
+            db.commit()
+            db.refresh(source)
+            message_id = source.id
+        finally:
+            db.close()
+
+        monkeypatch.setattr(main_module, "list_gmail_attachments", lambda *args: [{
+            "index": 0, "filename": "invoice.pdf", "mime_type": "application/pdf",
+            "size": 8, "is_inline": False, "can_preview": True, "available": True,
+        }])
+        monkeypatch.setattr(main_module, "get_gmail_attachment", lambda *args: {
+            "filename": "invoice.pdf", "mime_type": "application/pdf",
+            "size": 8, "is_inline": False, "data": b"%PDFtest",
+        })
+
+        listed = client.get(f"/api/messages/{message_id}/attachments")
+        assert listed.status_code == 200
+        assert listed.json()["attachments"][0]["filename"] == "invoice.pdf"
+
+        previewed = client.get(f"/api/messages/{message_id}/attachments/0?inline=true")
+        assert previewed.status_code == 200
+        assert previewed.headers["content-type"] == "application/pdf"
+        assert previewed.headers["content-disposition"].startswith("inline;")
+        assert previewed.content == b"%PDFtest"
+
+        db = SessionLocal()
+        try:
+            stored = db.get(EmailMessage, message_id)
+            assert stored is not None
+            assert stored.is_read is False
+        finally:
+            db.close()
