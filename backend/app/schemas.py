@@ -52,6 +52,10 @@ class SendApprovalIn(BaseModel):
     confirm_send: bool
     expected_updated_at: datetime
 
+class ForwardDraftIn(DraftIn):
+    include_attachments: bool = True
+
+
 class ConversationIn(BaseModel):
     title: str = Field(default="New conversation", max_length=500)
 
