@@ -56,6 +56,33 @@ class ForwardDraftIn(DraftIn):
     include_attachments: bool = True
 
 
+class AppleEnrollmentCreateIn(BaseModel):
+    device_name: str = Field(min_length=1, max_length=200)
+
+
+class AppleDeviceEnrollIn(BaseModel):
+    enrollment_token: str = Field(min_length=32, max_length=200)
+    device_name: str = Field(min_length=1, max_length=200)
+
+
+class AppleCommandIn(BaseModel):
+    command_type: Literal["note", "reminder"]
+    title: str = Field(min_length=1, max_length=500)
+    body: str = Field(default="", max_length=20000)
+    due_at: datetime | None = None
+    timezone: str = Field(default="Asia/Kolkata", min_length=1, max_length=64)
+    message_id: int | None = None
+    device_id: int | None = Field(default=None, gt=0)
+    idempotency_key: str = Field(min_length=16, max_length=100)
+
+
+class AppleDeviceCommandResultIn(BaseModel):
+    lease_token: str = Field(min_length=32, max_length=200)
+    success: bool
+    native_record_id: str | None = Field(default=None, max_length=500)
+    error_message: str = Field(default="", max_length=2000)
+
+
 class ConversationIn(BaseModel):
     title: str = Field(default="New conversation", max_length=500)
 
