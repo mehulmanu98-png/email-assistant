@@ -51,6 +51,9 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 - Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
 - Manual Sync Now queues work in Neon; the cloud worker checks for queued work every 15 minutes, so a manual sync may not begin immediately.
 - The raw message is hidden until you choose **Show original email**.
+- An email thread can be linked to an app-managed Email Assistant conversation. Existing imported messages are backfilled once; new synced messages are appended once through a per-message deduplication ledger. Unlinking stops future appends but retains conversation history.
+- Gmail threads use the provider's native thread ID. iCloud threads use the root Message-ID from References/In-Reply-To where available; ambiguous older messages may need a manual source-thread check.
+- Linked email content is stored as untrusted source material and displayed as escaped text. Attachments are not included in conversation context.
 - Background job failures are retried with bounded backoff and interrupted work is recovered.
 
 ## AI and other unfinished features
