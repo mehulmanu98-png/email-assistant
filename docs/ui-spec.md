@@ -239,6 +239,8 @@ Keep Accounts & Settings as one clean page with four grouped sections. Avoid dee
 - Show whether automatic linked AI conversation updates are enabled.
 - Allow automatic updates to be enabled or disabled per email thread and, where sensible, per account.
 - Clearly disclose the chosen AI integration and any separately billed API usage.
+- For ChatGPT plan usage, distinguish identity sign-in from the separate plan-use permission and show whether chatgpt.tokens.use.direct was granted.
+- Show the AI runtime type (user-controlled self-hosted VM), credential-transfer/refresh health, last successful model request and any usage-limit or region blocker; never show raw tokens.
 
 ### D. Security & Privacy
 
@@ -436,5 +438,7 @@ Do not show recurring-task creation controls, repeat selectors, or recurrence se
 ### Privacy and security UI
 - Show explicit consent controls for background AI email review and other authorised background processing.
 - Provide a clear way to disable background AI processing and disconnect/revoke the ChatGPT connection.
+- Background AI consent must be explicit and revocable, with separate visible choices for automatic email review, automatic reply-draft preparation, automatic follow-up extraction and delegated AI tasks.
+- Keep all background AI actions paused until the required plan-use scope and the user's explicit consent are both verified. On usage limit, pause rather than retry-loop or switch to paid API/credits.
 - Keep the deployed dashboard private and single-user. Public source code does not make the dashboard, mailbox data, attachments, drafts, conversations, credentials or database public.
 - Show a clear privacy/security status for connected accounts and service authorisations. Never display raw tokens or passwords.
