@@ -28,6 +28,7 @@ export const api = {
   sendDraft: (id:number,updated_at:string) => request<any>("/drafts/"+id+"/send",{method:"POST",body:JSON.stringify({confirm_send:true,expected_updated_at:updated_at})}),
   sync: () => request<any>("/sync",{method:"POST"}),
   syncOne: (id:number) => request<any>("/sync/"+id,{method:"POST"}),
+  syncJobs: () => request<any[]>("/sync/jobs"),
   followups: () => request<any[]>("/followups"),
   completeFollowup: (id:number) => request<any>("/followups/"+id+"/complete",{method:"PATCH"}),
   removeFollowup: (id:number) => request<any>("/followups/"+id,{method:"DELETE"}),

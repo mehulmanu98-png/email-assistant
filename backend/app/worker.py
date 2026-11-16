@@ -22,8 +22,8 @@ def retry_delay(attempt_count: int) -> timedelta:
     return timedelta(minutes=5 * (2 ** max(0, attempt_count - 1)))
 
 
-def due_sync_slots(now_local: datetime, times: list[str], grace_minutes: int = 30) -> list[str]:
-    """Return configured HH:MM slots that fell due recently."""
+def due_sync_slots(now_local: datetime, times: list[str]) -> list[str]:
+    """Return every configured slot due today; late runners catch up missed slots."""
     if now_local.tzinfo is None:
         raise ValueError("now_local must be timezone-aware")
     due = []
@@ -34,8 +34,7 @@ def due_sync_slots(now_local: datetime, times: list[str], grace_minutes: int = 3
             continue
         hour, minute = map(int, value.split(":"))
         scheduled = now_local.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        delay = now_local - scheduled
-        if timedelta(0) <= delay <= timedelta(minutes=grace_minutes):
+        if scheduled <= now_local:
             due.append(value)
     return sorted(set(due))
 
@@ -108,7 +107,7 @@ def recover_stale_jobs(stale_minutes: int = 45) -> int:
         db.close()
 
 
-def schedule_due_syncs(grace_minutes: int = 30) -> int:
+def schedule_due_syncs() -> int:
     # Mailbox synchronisation only; AI review and notifications are deliberately disabled.
     db = SessionLocal()
     try:
@@ -130,7 +129,7 @@ def schedule_due_syncs(grace_minutes: int = 30) -> int:
             except ZoneInfoNotFoundError:
                 log.warning("Invalid timezone for user %s; using configured default.", user_id)
                 now_local = datetime.now(ZoneInfo(settings.timezone))
-            for slot in due_sync_slots(now_local, times, grace_minutes):
+            for slot in due_sync_slots(now_local, times):
                 key = f"{user_id}:{now_local.strftime('%Y-%m-%d')}:{slot}"
                 if db.scalar(select(ScheduleRun.id).where(ScheduleRun.run_key == key)):
                     continue
