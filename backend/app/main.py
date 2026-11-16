@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db, init_db
 from .models import (
-    User, EmailAccount, EmailMessage, ReplyDraft, FollowUp, AITask,
+    User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, FollowUp, AITask,
     AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, utcnow
 )
 from .security import (
@@ -27,11 +27,11 @@ from .security import (
 )
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
-    DraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn, UserSettingsPatchIn
+    DraftIn, ForwardDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn, UserSettingsPatchIn
 )
 from .policy import effective_priority
-from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, list_icloud_attachments, get_icloud_attachment
-from .gmail import set_gmail_read, trash_gmail, send_gmail, list_gmail_attachments, get_gmail_attachment
+from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
+from .gmail import set_gmail_read, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
 from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
@@ -657,6 +657,150 @@ def send_draft(
     db.commit()
     return {"status": "sent", "provider_accepted": True, "delivery_confirmed": False,
             "note": "The source provider accepted the message; final delivery is not confirmed."}
+
+def forward_draft_out(draft: ForwardDraft, account: EmailAccount | None = None):
+    return {
+        "id": draft.id, "message_id": draft.message_id,
+        "to": draft.to_json, "cc": draft.cc_json, "bcc": draft.bcc_json,
+        "subject": draft.subject, "body": draft.body,
+        "include_attachments": draft.include_attachments,
+        "status": draft.status, "updated_at": draft.updated_at,
+        "from_account": account.email if account else None,
+    }
+
+
+@app.post("/api/messages/{message_id}/forward")
+def create_forward_draft(
+    message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    source = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id,
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(False),
+    ))
+    if not source:
+        raise HTTPException(404, "Email not found")
+    account = db.scalar(select(EmailAccount).where(
+        EmailAccount.id == source.account_id,
+        EmailAccount.user_id == user.id,
+    ))
+    if not account:
+        raise HTTPException(409, "The original receiving account is unavailable.")
+    draft = db.scalar(select(ForwardDraft).where(
+        ForwardDraft.message_id == message_id,
+        ForwardDraft.user_id == user.id,
+        ForwardDraft.status == "draft",
+    ).order_by(desc(ForwardDraft.updated_at)))
+    if not draft:
+        subject = source.subject if source.subject.lower().startswith("fwd:") else "Fwd: " + source.subject
+        draft = ForwardDraft(
+            user_id=user.id, message_id=source.id,
+            to_json=[], cc_json=[], bcc_json=[],
+            subject=subject, body="", include_attachments=True, status="draft",
+        )
+        db.add(draft)
+        db.commit()
+        db.refresh(draft)
+    return forward_draft_out(draft, account)
+
+
+@app.patch("/api/forward-drafts/{draft_id}")
+def save_forward_draft(
+    draft_id: int, data: ForwardDraftIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    draft = db.scalar(select(ForwardDraft).where(
+        ForwardDraft.id == draft_id, ForwardDraft.user_id == user.id
+    ))
+    if not draft:
+        raise HTTPException(404, "Forward draft not found")
+    if draft.status in {"sent", "sending", "send_uncertain"}:
+        raise HTTPException(409, "This forward can no longer be edited because sending has started or completed.")
+    draft.to_json = [str(v) for v in data.to]
+    draft.cc_json = [str(v) for v in data.cc]
+    draft.bcc_json = [str(v) for v in data.bcc]
+    draft.subject = data.subject
+    draft.body = data.body
+    draft.include_attachments = data.include_attachments
+    draft.status = "draft"
+    db.commit()
+    db.refresh(draft)
+    source = db.get(EmailMessage, draft.message_id)
+    account = db.get(EmailAccount, source.account_id) if source else None
+    return forward_draft_out(draft, account)
+
+
+@app.post("/api/forward-drafts/{draft_id}/send")
+def send_forward_draft(
+    draft_id: int, approval: SendApprovalIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    draft = db.scalar(select(ForwardDraft).where(
+        ForwardDraft.id == draft_id, ForwardDraft.user_id == user.id
+    ).with_for_update())
+    if not draft:
+        raise HTTPException(404, "Forward draft not found")
+    if not approval.confirm_send:
+        raise HTTPException(400, "Explicit final approval is required.")
+    if draft.status == "sent":
+        raise HTTPException(409, "This forward has already been accepted by the provider.")
+    if draft.status in {"sending", "send_uncertain"}:
+        raise HTTPException(409, "The previous send result is uncertain. Check the source account's Sent folder before retrying.")
+    actual = draft.updated_at
+    if actual and actual.tzinfo is None:
+        actual = actual.replace(tzinfo=timezone.utc)
+    expected = approval.expected_updated_at
+    if expected.tzinfo is None:
+        expected = expected.replace(tzinfo=timezone.utc)
+    if not actual or abs((actual - expected).total_seconds()) > 2:
+        raise HTTPException(409, "The forward changed after it was displayed. Save and review the latest version before sending.")
+    recipients = list(draft.to_json or []) + list(draft.cc_json or []) + list(draft.bcc_json or [])
+    if not recipients:
+        raise HTTPException(422, "Add at least one recipient before forwarding.")
+    if not draft.subject.strip():
+        raise HTTPException(422, "Subject must not be empty.")
+    source = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == draft.message_id,
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(False),
+    ))
+    if not source:
+        raise HTTPException(409, "Original email is unavailable; forwarding is blocked.")
+    account = db.scalar(select(EmailAccount).where(
+        EmailAccount.id == source.account_id,
+        EmailAccount.user_id == user.id,
+    ))
+    if not account or account.connection_status == "disconnected":
+        raise HTTPException(409, "Reconnect the original source account. The default forward From account is locked to it.")
+    draft.status = "sending"
+    db.commit()
+    try:
+        if account.provider == "icloud":
+            provider_id = send_icloud_forward(
+                account, list(draft.to_json or []), list(draft.cc_json or []),
+                list(draft.bcc_json or []), draft.subject, draft.body, source,
+                draft.include_attachments,
+            )
+        elif account.provider == "gmail":
+            provider_id = send_gmail_forward(
+                db, account, list(draft.to_json or []), list(draft.cc_json or []),
+                list(draft.bcc_json or []), draft.subject, draft.body, source,
+                draft.include_attachments,
+            )
+        else:
+            raise RuntimeError("Unsupported provider.")
+    except Exception as exc:
+        draft.status = "send_uncertain"
+        db.commit()
+        raise HTTPException(502, f"The forward result could not be confirmed ({type(exc).__name__}). Check Sent before retrying.")
+    draft.status = "sent"
+    draft.provider_sent_id = provider_id
+    db.commit()
+    return {
+        "status": "sent", "provider_accepted": True, "delivery_confirmed": False,
+        "note": "The provider accepted the forwarded email; final delivery is not confirmed."
+    }
+
 
 @app.get("/api/followups")
 def followups(user: User = Depends(current_user), db: Session = Depends(get_db)):
