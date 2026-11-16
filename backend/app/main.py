@@ -26,11 +26,12 @@ from .security import (
 )
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
-    DraftIn, SendApprovalIn, ConversationIn, MessageIn, UserSettingsPatchIn
+    DraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn, UserSettingsPatchIn
 )
 from .policy import effective_priority
 from .providers import set_icloud_read, move_icloud_to_trash, send_icloud
 from .gmail import set_gmail_read, trash_gmail, send_gmail
+from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
 app.add_middleware(
@@ -716,6 +717,63 @@ def cancel_task(task_id: int, user: User = Depends(current_user), db: Session = 
     item.status = "cancelled"
     db.commit()
     return task_out(item)
+
+@app.get("/api/messages/{message_id}/conversation")
+def email_thread_conversation_link(
+    message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    try:
+        return get_email_thread_link(db, user.id, message_id)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+
+
+@app.post("/api/messages/{message_id}/conversation")
+def link_email_to_conversation(
+    message_id: int, data: ConversationLinkIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    try:
+        link, appended, total = link_email_thread(
+            db, user.id, message_id, data.conversation_id, data.auto_update
+        )
+        db.commit()
+        return {
+            "linked": True,
+            "link_id": link.id,
+            "conversation_id": link.conversation_id,
+            "auto_update": link.auto_update,
+            "appended_messages": appended,
+            "thread_message_count": total,
+            "history_retained_on_unlink": True,
+        }
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(422, str(exc))
+    except RuntimeError as exc:
+        db.rollback()
+        raise HTTPException(409, str(exc))
+
+
+@app.delete("/api/messages/{message_id}/conversation")
+def unlink_email_from_conversation(
+    message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    try:
+        removed = unlink_email_thread(db, user.id, message_id)
+        db.commit()
+        return {
+            "unlinked": removed,
+            "conversation_history_retained": True,
+            "future_email_updates_stopped": removed,
+        }
+    except LookupError as exc:
+        db.rollback()
+        raise HTTPException(404, str(exc))
+
 
 @app.get("/api/conversations")
 def conversations(user: User = Depends(current_user), db: Session = Depends(get_db)):
