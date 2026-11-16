@@ -64,11 +64,11 @@ The earlier handoff incorrectly treated commercial SIWC partner approval as the 
 
 ### Documented integration shape
 
-1. Prepare a stable opaque ext_agent_host_id for the user's Mac sign-in helper and a separate stable host ID for the dedicated AI VM.
-2. On the Mac, run an app-owned loopback callback and OAuth authorization-code flow with state, OIDC nonce, PKCE S256, and the documented dynamic client registration (dynamic_agent_client) for the first sign-in. Use the issued client ID on subsequent sign-ins; no partner API key or client secret is part of this open-source flow.
+1. Prepare a single stable opaque ext_agent_host_id on the AI VM and persist it there before sign-in. Copy the non-secret VM ID to the Mac.
+2. On the Mac, run an app-owned loopback callback and OAuth authorization-code flow using the VM's host ID, state, OIDC nonce, PKCE S256, and the documented dynamic client registration (dynamic_agent_client) for first sign-in. Use the issued client ID on subsequent sign-ins; no partner API key or client secret is part of this open-source flow.
 3. Request identity scopes and the plan-use permission: openid profile email offline_access resource.invoke chatgpt.tokens.use.direct, with resource=https://api.openai.com/v1.
 4. Exchange the authorization code, validate the ID token signature and claims against OpenAI's published JWKS, validate the callback state/nonce and issued client ID, and confirm the token response actually grants chatgpt.tokens.use.direct. A valid identity token alone is not enough to allow inference.
-5. Transfer the protected credential file to the user's dedicated self-hosted VM over a secure channel such as SSH/IAP. The VM keeps its own stable host ID and stores the credential file on its own local filesystem with owner-only permissions; the VM owns subsequent token refreshes. A rotated refresh token and access-token expiry must be updated atomically.
+5. Transfer the protected credential file to the user's dedicated self-hosted VM over a secure channel such as SSH/IAP. The importer must verify that ext_agent_host_id matches the VM's already-persisted host ID. The VM stores the credential file on its own local filesystem with owner-only permissions and owns subsequent token refreshes. A rotated refresh token and access-token expiry must be updated atomically.
 6. The VM requests only models returned for the user's signed-in account. Inference uses POST https://api.openai.com/v1/responses with store:false, stream:true, and completes only on response.completed.
 
 ### Security, consent and limits
