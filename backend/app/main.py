@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hmac
 import secrets
 import re
 import logging
@@ -14,13 +15,14 @@ from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from sqlalchemy import select, desc, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import get_db, init_db
 from .models import (
     User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
-    AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, AppleDevice,
+    AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, LoginThrottle, AppleDevice,
     AppleDeviceEnrollment, AppleDeviceCommand, utcnow
 )
 from .security import (
@@ -51,9 +53,15 @@ app.add_middleware(
 @app.middleware("http")
 async def origin_guard(request: Request, call_next):
     if request.method in {"POST", "PATCH", "DELETE", "PUT"}:
-        origin = request.headers.get("origin")
-        if origin and origin.rstrip("/") != settings.frontend_origin.rstrip("/"):
-            return Response("Origin not allowed", status_code=403)
+        # Apple Shortcuts authenticate with one-time/enrolled device tokens rather
+        # than the browser session cookie, so they do not send a browser Origin.
+        device_token_route = request.url.path.startswith("/api/apple/device/")
+        if not device_token_route:
+            origin = request.headers.get("origin")
+            if origin and origin.rstrip("/") != settings.frontend_origin.rstrip("/"):
+                return Response("Origin not allowed", status_code=403)
+            if settings.app_env == "production" and not origin:
+                return Response("Origin header is required", status_code=403)
     return await call_next(request)
 
 @app.on_event("startup")
@@ -93,11 +101,80 @@ def health(db: Session = Depends(get_db)):
         "notifications": False
     }
 
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_WINDOW = timedelta(minutes=15)
+LOGIN_LOCKOUT = timedelta(minutes=15)
+
+
+def _login_identifier_hash(email: str) -> str:
+    """Hash a normalized sign-in identifier without storing the raw address."""
+    return hmac.new(
+        settings.jwt_secret.encode("utf-8"),
+        email.strip().lower().encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
 @app.post("/api/auth/login")
 def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
+    now = utcnow()
+    identifier_hash = _login_identifier_hash(data.email)
+    throttle = db.scalar(select(LoginThrottle).where(
+        LoginThrottle.identifier_hash == identifier_hash
+    ).with_for_update())
+
+    if throttle and throttle.blocked_until and _as_utc(throttle.blocked_until) > now:
+        retry_after = max(1, int((_as_utc(throttle.blocked_until) - now).total_seconds()))
+        raise HTTPException(
+            429,
+            "Too many failed sign-in attempts. Wait before trying again.",
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    if throttle and now - _as_utc(throttle.window_started_at) >= LOGIN_WINDOW:
+        throttle.failed_attempts = 0
+        throttle.window_started_at = now
+        throttle.blocked_until = None
+
     user = db.scalar(select(User).where(User.email == data.email.lower()))
     if not user or not verify_password(data.password, user.password_hash):
+        if not throttle:
+            throttle = LoginThrottle(
+                identifier_hash=identifier_hash,
+                failed_attempts=0,
+                window_started_at=now,
+            )
+            db.add(throttle)
+            try:
+                db.flush()
+            except IntegrityError:
+                # A parallel first attempt may have created the unique identifier row.
+                db.rollback()
+                throttle = db.scalar(select(LoginThrottle).where(
+                    LoginThrottle.identifier_hash == identifier_hash
+                ).with_for_update())
+                if not throttle:
+                    raise HTTPException(503, "Sign-in is temporarily unavailable. Please retry.")
+        throttle.failed_attempts += 1
+        throttle.updated_at = now
+        if throttle.failed_attempts >= LOGIN_FAILURE_LIMIT:
+            throttle.blocked_until = now + LOGIN_LOCKOUT
+        db.commit()
+        if throttle.blocked_until and _as_utc(throttle.blocked_until) > now:
+            raise HTTPException(
+                429,
+                "Too many failed sign-in attempts. Wait before trying again.",
+                headers={"Retry-After": str(int(LOGIN_LOCKOUT.total_seconds()))},
+            )
         raise HTTPException(401, "Invalid email or password")
+
+    if throttle:
+        db.delete(throttle)
+        db.commit()
     response.set_cookie(
         COOKIE_NAME, create_access_token(user.id), httponly=True,
         secure=settings.app_env == "production", samesite="strict", max_age=43200, path="/"
