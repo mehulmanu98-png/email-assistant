@@ -78,7 +78,7 @@ def health(db: Session = Depends(get_db)):
         "status": "ok",
         "providers": {"icloud": "imap_smtp", "gmail": "google_oauth"},
         "ai_ready": False,
-        "ai_status": "disabled_plan_not_eligible",
+        "ai_status": "disabled_commercial_integration_not_approved",
         "scheduled_mailbox_sync": True,
         "notifications": False
     }
@@ -674,7 +674,7 @@ def add_task(data: TaskIn, user: User = Depends(current_user), db: Session = Dep
         deadline_type=data.deadline_type, deadline_at=data.deadline_at,
         scheduled_start_at=data.scheduled_start_at,
         priority_reason="Calculated from the saved priority and deadline rules.",
-        execution_blocker="AI execution is paused: the current Go plan is not eligible for the official open-source ChatGPT plan-usage route."
+        execution_blocker="AI execution is paused: this app has not received an approved commercial Sign in with ChatGPT integration. The open-source DevKit is noncommercial and is not used for business email processing. No paid API or credit fallback is enabled."
     )
     db.add(item)
     db.commit()
@@ -746,7 +746,7 @@ def conversation_message(
     history.append({"role": "user", "content": data.content, "at": utcnow().isoformat()})
     history.append({
         "role": "system",
-        "content": "Saved locally. AI responses are unavailable because this account's current ChatGPT Go plan is not eligible for the official open-source plan-usage integration. No paid API is enabled.",
+        "content": "Saved locally. AI responses are paused because this app has not received an approved commercial Sign in with ChatGPT integration. The open-source DevKit is noncommercial and is not used for business email processing. No paid API or credit fallback is enabled.",
         "at": utcnow().isoformat()
     })
     item.messages = history
