@@ -160,7 +160,7 @@ gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT_ID" --region "$REGION" \
   --service-account "$RUNTIME_SA" --allow-unauthenticated \
   --port 8080 --memory 512Mi --cpu 1 --max 1 \
-  --set-env-vars "APP_ENV=production,BOOTSTRAP_EMAIL=$BOOTSTRAP_EMAIL,TIMEZONE=Asia/Kolkata,INITIAL_SYNC_DAYS=90,MAX_MESSAGES_PER_SYNC=500,FRONTEND_ORIGIN=https://placeholder.invalid,GOOGLE_REDIRECT_URI=https://placeholder.invalid/api/oauth/gmail/callback" \
+  --set-env-vars "APP_ENV=production,BOOTSTRAP_EMAIL=$BOOTSTRAP_EMAIL,TIMEZONE=Asia/Kolkata,INITIAL_SYNC_DAYS=90,MAX_MESSAGES_PER_SYNC=500,CLOUD_PROJECT_ID=$PROJECT_ID,CLOUD_REGION=$REGION,MAIL_WORKER_JOB=$WORKER_JOB,FRONTEND_ORIGIN=https://placeholder.invalid,GOOGLE_REDIRECT_URI=https://placeholder.invalid/api/oauth/gmail/callback" \
   --set-secrets "$SECRET_MAP"
 
 IMAGE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(spec.template.spec.containers[0].image)')"
@@ -179,10 +179,13 @@ gcloud run jobs deploy "$WORKER_JOB" \
   --set-env-vars "TIMEZONE=Asia/Kolkata,MAX_MESSAGES_PER_SYNC=500" \
   --set-secrets "$SECRET_MAP"
 
-# Only this separate scheduler identity can start the worker job.
-gcloud run jobs add-iam-policy-binding "$WORKER_JOB" \
-  --project "$PROJECT_ID" --region "$REGION" \
-  --member="serviceAccount:$SCHEDULER_SA" --role="roles/run.invoker" >/dev/null
+# The scheduler identity handles recurring runs; the dashboard runtime identity
+# can also start the same durable worker immediately for Sync Now / first sync.
+for INVOKER_SA in "$SCHEDULER_SA" "$RUNTIME_SA"; do
+  gcloud run jobs add-iam-policy-binding "$WORKER_JOB" \
+    --project "$PROJECT_ID" --region "$REGION" \
+    --member="serviceAccount:$INVOKER_SA" --role="roles/run.invoker" >/dev/null
+done
 
 echo "Testing worker-to-Neon connectivity before enabling the recurring schedule..."
 gcloud run jobs execute "$WORKER_JOB" --project "$PROJECT_ID" --region "$REGION" --wait
@@ -215,7 +218,7 @@ echo "Dashboard URL: $SERVICE_URL_PUBLIC"
 echo "Gmail OAuth redirect URI: $GOOGLE_REDIRECT_URI"
 echo "Add that redirect URI to the Google OAuth Web client to enable Gmail."
 echo "Cloud Scheduler now starts the Cloud Run worker every 15 minutes in Asia/Kolkata."
-echo "The worker performs actual mailbox syncs at the saved times (default 08:00, 11:00, 14:00, 17:00) and handles manual Sync Now jobs."
+echo "The worker performs actual mailbox syncs at the saved times (default 08:00, 12:00 and 17:00 Asia/Kolkata). Manual Sync Now triggers the worker immediately; the 15-minute scheduler remains the fallback."
 echo "The GitHub NEON_DATABASE_URL secret you added earlier is not needed for the primary scheduler; you may leave it there."
 echo "Review Cloud Billing and set a budget alert; free-tier limits are not a hard spending cap."
 unset NEON_DATABASE_URL BOOTSTRAP_PASSWORD GOOGLE_CLIENT_SECRET JWT_SECRET FIELD_ENCRYPTION_KEY

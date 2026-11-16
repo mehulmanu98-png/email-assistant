@@ -50,7 +50,7 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 - Replies default to Reply All recipient handling where headers permit, allow edits to To/CC/BCC, lock From to the original account, and require a separate send approval.
 - Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
 - Forwarding uses a separate internal forward draft and explicit approval. It defaults to the original source account, sends outside the source thread, includes the original message text and optionally forwards original attachments within the 25 MB combined in-app limit. Provider acceptance is reported separately from final delivery.
-- Manual Sync Now queues work in Neon; the cloud worker checks for queued work every 15 minutes, so a manual sync may not begin immediately.
+- Manual Sync Now commits a durable job to Neon and requests an immediate Cloud Run worker execution using the dashboard runtime service identity. The 15-minute Cloud Scheduler run remains a fallback for queued or interrupted work.
 - The raw message is hidden until you choose **Show original email**.
 - An email thread can be linked to an app-managed Email Assistant conversation. Existing imported messages are backfilled once; new synced messages are appended once through a per-message deduplication ledger. Unlinking stops future appends but retains conversation history.
 - Gmail threads use the provider's native thread ID. iCloud threads use the root Message-ID from References/In-Reply-To where available; ambiguous older messages may need a manual source-thread check.

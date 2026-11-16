@@ -8,7 +8,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.main import app
 import app.main as main_module
-from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, AIConversation, AppleDevice, AppleDeviceCommand
+from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, SyncJob, AIConversation, AppleDevice, AppleDeviceCommand
 from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
 
@@ -1046,3 +1046,77 @@ def test_new_outbound_draft_rejects_unowned_or_disconnected_from_account():
             "body": "Test body",
         })
         assert unowned.status_code == 409
+
+
+def test_manual_sync_triggers_cloud_worker_after_durable_job_commit(monkeypatch):
+    worker_calls = []
+    monkeypatch.setattr(
+        main_module, "trigger_mailbox_worker",
+        lambda: worker_calls.append("triggered") or True,
+    )
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="icloud",
+                email=f"instant-sync-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            account_id = account.id
+        finally:
+            db.close()
+
+        response = client.post(f"/api/sync/{account_id}")
+        assert response.status_code == 200
+        assert response.json() == {"queued": True, "worker_triggered": True}
+        assert worker_calls == ["triggered"]
+
+        db = SessionLocal()
+        try:
+            queued = db.scalars(select(SyncJob).where(
+                SyncJob.account_id == account_id,
+                SyncJob.status == "queued",
+            )).all()
+            assert len(queued) == 1
+            assert queued[0].details == "Manual sync"
+        finally:
+            db.close()
+
+
+def test_manual_sync_keeps_queued_job_when_cloud_trigger_is_not_configured(monkeypatch):
+    monkeypatch.setattr(main_module, "trigger_mailbox_worker", lambda: False)
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="icloud",
+                email=f"queued-sync-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            account_id = account.id
+        finally:
+            db.close()
+
+        response = client.post(f"/api/sync/{account_id}")
+        assert response.status_code == 200
+        assert response.json() == {"queued": True, "worker_triggered": False}
+
+        db = SessionLocal()
+        try:
+            queued = db.scalars(select(SyncJob).where(
+                SyncJob.account_id == account_id,
+                SyncJob.status == "queued",
+            )).all()
+            assert len(queued) == 1
+        finally:
+            db.close()

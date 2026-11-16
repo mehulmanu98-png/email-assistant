@@ -41,6 +41,7 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - Separate forward draft persistence, editing, optional source-attachment inclusion, source-account locking, explicit approval and uncertain-send protection; Gmail forward MIME has a regression test to ensure it does not reuse the original thread ID.
 - Neon-backed sync jobs, retry/backoff, stale-job recovery and singleton worker lease.
 - Cloud Run deployment script, one-shot Cloud Run Job and Cloud Scheduler setup.
+- Manual Sync Now and first account import commit durable sync jobs and request immediate Cloud Run worker execution using the dashboard runtime service identity; the 15-minute Scheduler trigger remains the fallback.
 - Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, edit, snooze, mark complete and remove tracking item without changing the email.
 - Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
@@ -110,7 +111,7 @@ The assistant should continue code, tests and documentation that do not require 
 ## Next engineering priorities
 
 1. Obtain written OpenAI commercial-integration approval and its supported remote-hosted token/usage architecture; until then, keep all AI actions blocked and do not add a paid API fallback.
-2. Complete a proper source-thread detail view and then implement the whole-trail summary only when an approved AI engine is available.
+2. Complete live acceptance of full source-provider thread retrieval (including original Sent messages) against a non-critical iCloud/Gmail account.
 3. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
 4. After AI approval, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
 5. Complete deployment, live iCloud/Gmail provider acceptance, backup/restore checks, rate limits, audit review and public-source security/licence review before relying on critical business email.

@@ -2,6 +2,7 @@ import base64
 import hashlib
 import secrets
 import re
+import logging
 from datetime import datetime, timedelta, timezone
 from email.utils import getaddresses
 from urllib.parse import urlencode, quote
@@ -36,6 +37,9 @@ from .policy import effective_priority
 from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
 from .gmail import set_gmail_read, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
 from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
+from .cloud_jobs import trigger_mailbox_worker
+
+logger = logging.getLogger("email-assistant-api")
 from .thread_retrieval import load_provider_thread
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
@@ -171,6 +175,20 @@ def accounts(user: User = Depends(current_user), db: Session = Depends(get_db)):
         "status": a.connection_status, "last_sync_at": a.last_sync_at
     } for a in rows]
 
+
+def _try_trigger_mailbox_worker() -> bool:
+    """Start the durable Cloud Run worker after a job is committed."""
+    try:
+        return trigger_mailbox_worker()
+    except Exception as exc:
+        # Never log request bodies, access tokens, mailbox credentials or email content.
+        logger.warning(
+            "Could not trigger the mailbox worker (%s); the queued job remains available to the scheduled worker.",
+            type(exc).__name__,
+        )
+        return False
+
+
 @app.post("/api/accounts")
 def add_account(data: AccountIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     address = data.email.lower()
@@ -194,7 +212,8 @@ def add_account(data: AccountIn, user: User = Depends(current_user), db: Session
     db.refresh(account)
     db.add(SyncJob(user_id=user.id, account_id=account.id, status="queued", details="Initial 90-day iCloud Inbox sync"))
     db.commit()
-    return {"id": account.id, "status": "verification_queued"}
+    worker_triggered = _try_trigger_mailbox_worker()
+    return {"id": account.id, "status": "verification_queued", "worker_triggered": worker_triggered}
 
 @app.get("/api/oauth/gmail/start")
 def gmail_oauth_start(user: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -291,6 +310,7 @@ def gmail_oauth_callback(
             details="Initial 90-day Gmail sync"
         ))
         db.commit()
+        _try_trigger_mailbox_worker()
         return RedirectResponse(finish + "?gmail=connected", status_code=302)
     except Exception:
         db.rollback()
@@ -316,7 +336,8 @@ def sync_all(user: User = Depends(current_user), db: Session = Depends(get_db)):
     for account in rows:
         db.add(SyncJob(user_id=user.id, account_id=account.id, status="queued", details="Manual sync"))
     db.commit()
-    return {"queued": len(rows)}
+    worker_triggered = _try_trigger_mailbox_worker() if rows else False
+    return {"queued": len(rows), "worker_triggered": worker_triggered}
 
 @app.post("/api/sync/{account_id}")
 def sync_one(account_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -329,7 +350,8 @@ def sync_one(account_id: int, user: User = Depends(current_user), db: Session = 
         raise HTTPException(409, "Reconnect this account before syncing.")
     db.add(SyncJob(user_id=user.id, account_id=account.id, status="queued", details="Manual sync"))
     db.commit()
-    return {"queued": True}
+    worker_triggered = _try_trigger_mailbox_worker()
+    return {"queued": True, "worker_triggered": worker_triggered}
 
 @app.get("/api/sync/jobs")
 def sync_jobs(user: User = Depends(current_user), db: Session = Depends(get_db)):
