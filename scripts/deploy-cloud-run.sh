@@ -20,31 +20,100 @@ gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q . ||
 
 read -r -p "Google Cloud project ID: " PROJECT_ID
 [[ -n "$PROJECT_ID" ]] || { echo "Project ID is required."; exit 1; }
-read -r -p "Dashboard login email: " BOOTSTRAP_EMAIL
-[[ -n "$BOOTSTRAP_EMAIL" ]] || { echo "Dashboard email is required."; exit 1; }
-read -r -s -p "Neon pooled PostgreSQL connection URL: " NEON_DATABASE_URL; echo
-[[ "$NEON_DATABASE_URL" == postgresql://* || "$NEON_DATABASE_URL" == postgresql+psycopg://* ]] || {
-  echo "Use the Neon PostgreSQL pooled connection URL, not a SQLite URL."; exit 1;
-}
-read -r -s -p "Unique dashboard password (12+ characters): " BOOTSTRAP_PASSWORD; echo
-[[ ${#BOOTSTRAP_PASSWORD} -ge 12 ]] || { echo "Password must be at least 12 characters."; exit 1; }
-read -r -p "Google OAuth Web Client ID (optional; Enter to connect Gmail later): " GOOGLE_CLIENT_ID
-if [[ -n "$GOOGLE_CLIENT_ID" ]]; then
-  read -r -s -p "Google OAuth Web Client Secret: " GOOGLE_CLIENT_SECRET; echo
-  [[ -n "$GOOGLE_CLIENT_SECRET" ]] || { echo "Client ID and secret must be supplied together."; exit 1; }
-else
-  GOOGLE_CLIENT_SECRET=""
-fi
-
-JWT_SECRET="$(openssl rand -hex 48)"
-FIELD_ENCRYPTION_KEY="$(openssl rand -hex 48)"
-RUNTIME_SA="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-SCHEDULER_SA="${SCHEDULER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
-
+gcloud config set project "$PROJECT_ID" >/dev/null
 echo
 echo "Enabling Cloud Run, Cloud Build, Secret Manager and Cloud Scheduler APIs..."
-gcloud config set project "$PROJECT_ID" >/dev/null
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudscheduler.googleapis.com
+
+secret_exists() {
+  gcloud secrets describe "$1" --project "$PROJECT_ID" >/dev/null 2>&1
+}
+read_secret() {
+  gcloud secrets versions access latest --secret="$1" --project "$PROJECT_ID"
+}
+
+if gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" >/dev/null 2>&1; then
+  SERVICE_EXISTS=true
+  EXISTING_EMAIL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(spec.template.spec.containers[0].env[?(@.name=="BOOTSTRAP_EMAIL")].value)')"
+else
+  SERVICE_EXISTS=false
+  EXISTING_EMAIL=""
+fi
+if [[ "$SERVICE_EXISTS" == "true" ]] && ! secret_exists "email-assistant-field-key"; then
+  echo "The existing Cloud Run service has no saved mailbox encryption key in Secret Manager. Stop here; do not generate a new key or existing mailbox credentials could become unreadable."
+  exit 1
+fi
+if [[ "$SERVICE_EXISTS" == "true" && -z "$EXISTING_EMAIL" ]]; then
+  echo "Could not safely read the existing dashboard login email from Cloud Run. Stop and inspect the service BOOTSTRAP_EMAIL before redeploying."
+  exit 1
+fi
+if [[ -n "$EXISTING_EMAIL" ]]; then
+  read -r -p "Dashboard login email [$EXISTING_EMAIL] (press Enter to keep): " ENTERED_EMAIL
+  if [[ -n "$ENTERED_EMAIL" && "$ENTERED_EMAIL" != "$EXISTING_EMAIL" ]]; then
+    echo "The existing Neon user is not renamed by redeployment. Keep the current login email or change it separately in the database."
+    exit 1
+  fi
+  BOOTSTRAP_EMAIL="$EXISTING_EMAIL"
+else
+  read -r -p "Dashboard login email: " BOOTSTRAP_EMAIL
+  [[ -n "$BOOTSTRAP_EMAIL" ]] || { echo "Dashboard email is required."; exit 1; }
+fi
+
+if secret_exists "email-assistant-neon-url"; then
+  read -r -s -p "New Neon pooled PostgreSQL URL (press Enter to keep the saved one): " NEW_NEON_DATABASE_URL; echo
+  if [[ -n "$NEW_NEON_DATABASE_URL" ]]; then
+    NEON_DATABASE_URL="$NEW_NEON_DATABASE_URL"
+  else
+    NEON_DATABASE_URL="$(read_secret "email-assistant-neon-url")"
+  fi
+else
+  read -r -s -p "Neon pooled PostgreSQL connection URL: " NEON_DATABASE_URL; echo
+fi
+[[ "$NEON_DATABASE_URL" == postgresql://* || "$NEON_DATABASE_URL" == postgresql+psycopg://* ]] || {
+  echo "Use the Neon pooled PostgreSQL connection URL, not a SQLite URL."; exit 1;
+}
+
+if secret_exists "email-assistant-bootstrap-password"; then
+  BOOTSTRAP_PASSWORD="$(read_secret "email-assistant-bootstrap-password")"
+  echo "Existing dashboard bootstrap secret retained; redeployment will not change the current database login password."
+else
+  read -r -s -p "Choose a unique dashboard password (12+ characters): " BOOTSTRAP_PASSWORD; echo
+  [[ ${#BOOTSTRAP_PASSWORD} -ge 12 ]] || { echo "Password must be at least 12 characters."; exit 1; }
+fi
+
+if secret_exists "email-assistant-jwt-secret"; then
+  JWT_SECRET="$(read_secret "email-assistant-jwt-secret")"
+else
+  JWT_SECRET="$(openssl rand -hex 48)"
+fi
+if secret_exists "email-assistant-field-key"; then
+  FIELD_ENCRYPTION_KEY="$(read_secret "email-assistant-field-key")"
+  echo "Existing mailbox encryption key retained."
+else
+  FIELD_ENCRYPTION_KEY="$(openssl rand -hex 48)"
+fi
+
+if secret_exists "email-assistant-google-client-id" && secret_exists "email-assistant-google-client-secret"; then
+  GOOGLE_CLIENT_ID="$(read_secret "email-assistant-google-client-id")"
+  GOOGLE_CLIENT_SECRET="$(read_secret "email-assistant-google-client-secret")"
+  read -r -p "Replace the saved Google OAuth client? (y/N): " REPLACE_GOOGLE
+  if [[ "$REPLACE_GOOGLE" =~ ^[Yy]$ ]]; then
+    read -r -p "New Google OAuth Web Client ID: " GOOGLE_CLIENT_ID
+    read -r -s -p "New Google OAuth Web Client Secret: " GOOGLE_CLIENT_SECRET; echo
+    [[ -n "$GOOGLE_CLIENT_ID" && -n "$GOOGLE_CLIENT_SECRET" ]] || { echo "Both Google OAuth values are required."; exit 1; }
+  fi
+else
+  read -r -p "Google OAuth Web Client ID (optional; Enter to connect Gmail later): " GOOGLE_CLIENT_ID
+  if [[ -n "$GOOGLE_CLIENT_ID" ]]; then
+    read -r -s -p "Google OAuth Web Client Secret: " GOOGLE_CLIENT_SECRET; echo
+    [[ -n "$GOOGLE_CLIENT_SECRET" ]] || { echo "Client ID and secret must be supplied together."; exit 1; }
+  else
+    GOOGLE_CLIENT_SECRET=""
+  fi
+fi
+
+RUNTIME_SA="${RUNTIME_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+SCHEDULER_SA="${SCHEDULER_SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 create_service_account() {
   local name="$1" email="$2"
@@ -119,6 +188,7 @@ SCHEDULER_FLAGS=(
   "--time-zone=Asia/Kolkata"
   "--uri=$SCHEDULER_URI"
   "--http-method=POST"
+  "--headers=Content-Type=application/json"
   "--message-body={}"
   "--oauth-service-account-email=$SCHEDULER_SA"
   "--oauth-token-scope=https://www.googleapis.com/auth/cloud-platform"
