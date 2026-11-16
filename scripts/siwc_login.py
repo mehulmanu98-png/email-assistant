@@ -28,6 +28,7 @@ from app.siwc import (  # noqa: E402
     OPENAI_ISSUER,
     OPENAI_RESOURCE,
     REQUIRED_PLAN_SCOPE,
+    SIWCError,
     save_credentials,
     verify_id_token,
 )
@@ -60,7 +61,9 @@ def _callback_server(port: int, expected_state: str) -> tuple[http.server.HTTPSe
             query = parse_qs(parsed.query, keep_blank_values=True)
             state = (query.get("state") or [""])[0]
             if not state or not secrets.compare_digest(state, expected_state):
+                result["error"] = "state_mismatch"
                 self.send_response(400)
+                self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(b"Sign-in state validation failed. Return to the terminal.")
                 return
@@ -257,6 +260,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nSign-in cancelled.", file=sys.stderr)
         raise SystemExit(130)
-    except (httpx.HTTPError, CallbackError, ValueError) as exc:
+    except (httpx.HTTPError, CallbackError, SIWCError, ValueError) as exc:
         print("Sign-in did not complete: " + str(exc), file=sys.stderr)
         raise SystemExit(1)
