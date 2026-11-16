@@ -112,7 +112,7 @@ def dashboard(user: User = Depends(current_user), db: Session = Depends(get_db))
         "accounts": count(EmailAccount, EmailAccount.user_id == user.id),
         "unread": count(EmailMessage, EmailMessage.user_id == user.id, EmailMessage.is_read.is_(False), EmailMessage.is_trashed.is_(False)),
         "followups": count(FollowUp, FollowUp.user_id == user.id, FollowUp.status.in_(["action_required", "awaiting_response"])),
-        "active_tasks": count(AITask, AITask.user_id == user.id, AITask.status.in_(["queued", "in_progress", "waiting_for_user"])),
+        "active_tasks": count(AITask, AITask.user_id == user.id, AITask.status.in_(["queued", "in_progress"])),
         "ai_ready": False
     }
 
