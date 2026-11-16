@@ -3,6 +3,7 @@
 Thread loading uses read-only provider operations. It may import older messages
 into the app cache, but it never changes a mailbox read flag.
 """
+import datetime
 import email
 import email.utils
 import re
@@ -27,7 +28,9 @@ def _message_ids(value: str | None) -> list[str]:
     found = re.findall(r"<[^<>\r\n]+>", value)
     if found:
         return list(dict.fromkeys(found))
-    return [part for part in value.split() if part and not any(ch in part for ch in "\r\n\x00")]
+    # RFC Message-IDs have an @ separator; internal IMAP UID fallback ids
+    # are intentionally not used for provider-wide thread searches.
+    return [part for part in value.split() if "@" in part and not any(ch in part for ch in "\r\n\x00")]
 
 
 def _received_at(value: str | None):
@@ -76,7 +79,7 @@ def _gmail_thread(db: Session, account: EmailAccount, source: EmailMessage):
         parsed = gmail.parse_gmail_message(item.get("payload") or {})
         try:
             received = (
-                __import__("datetime").datetime.fromtimestamp(
+                datetime.datetime.fromtimestamp(
                     int(item.get("internalDate", "0")) / 1000, timezone.utc
                 )
                 if item.get("internalDate") else None
@@ -221,7 +224,6 @@ def _icloud_thread(db: Session, account: EmailAccount, source: EmailMessage):
 
                         received = _received_at(parsed.get("Date"))
                         body = providers._plain_body(parsed)
-                        refs = parsed.get("References") or parsed.get("In-Reply-To") or stable_root
                         has_attachments = any(
                             part.get_filename() or part.get_content_disposition() == "attachment"
                             for part in (parsed.walk() if parsed.is_multipart() else [])
