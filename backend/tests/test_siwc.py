@@ -273,3 +273,83 @@ def test_disconnect_always_removes_local_token_and_reports_remote_revocation(tmp
     finally:
         client.close()
     assert not path.exists()
+
+
+def test_id_token_validation_checks_signature_audience_issuer_and_nonce(monkeypatch):
+    calls = {}
+
+    def fake_header(token):
+        assert token == "signed-token"
+        return {"alg": "RS256", "kid": "openai-key-1"}
+
+    def fake_decode(token, key, **kwargs):
+        calls["key"] = key
+        calls["kwargs"] = kwargs
+        return {
+            "sub": "validated-openai-subject",
+            "iss": siwc.OPENAI_ISSUER,
+            "aud": "oaiapp_issued-client",
+            "nonce": "fresh-oauth-nonce",
+            "exp": 4_000_000_000,
+        }
+
+    monkeypatch.setattr(siwc.jwt, "get_unverified_header", fake_header)
+    monkeypatch.setattr(siwc.jwt, "decode", fake_decode)
+
+    claims = siwc.verify_id_token(
+        "signed-token",
+        client_id="oaiapp_issued-client",
+        nonce="fresh-oauth-nonce",
+        discovery={"issuer": siwc.OPENAI_ISSUER, "jwks_uri": "https://auth.openai.com/.well-known/jwks.json"},
+        jwks={"keys": [{"kid": "openai-key-1", "kty": "RSA"}]},
+    )
+
+    assert claims["sub"] == "validated-openai-subject"
+    assert calls["key"]["kid"] == "openai-key-1"
+    assert calls["kwargs"]["audience"] == "oaiapp_issued-client"
+    assert calls["kwargs"]["issuer"] == siwc.OPENAI_ISSUER
+    assert calls["kwargs"]["algorithms"] == ["RS256"]
+
+
+def test_id_token_validation_rejects_nonce_mismatch(monkeypatch):
+    monkeypatch.setattr(siwc.jwt, "get_unverified_header", lambda token: {"alg": "RS256", "kid": "key"})
+    monkeypatch.setattr(
+        siwc.jwt, "decode",
+        lambda *args, **kwargs: {
+            "sub": "subject", "nonce": "wrong-nonce",
+            "iss": siwc.OPENAI_ISSUER, "aud": "oaiapp_client",
+        },
+    )
+
+    with pytest.raises(siwc.SIWCError, match="nonce"):
+        siwc.verify_id_token(
+            "signed-token",
+            client_id="oaiapp_client",
+            nonce="expected-nonce",
+            discovery={"issuer": siwc.OPENAI_ISSUER, "jwks_uri": "https://auth.openai.com/.well-known/jwks.json"},
+            jwks={"keys": [{"kid": "key", "kty": "RSA"}]},
+        )
+
+
+def test_generic_http_429_is_not_misreported_as_plan_usage_exhausted():
+    response = httpx.Response(
+        429,
+        json={"error": {"code": "rate_limit_exceeded"}},
+        headers={"x-request-id": "req_ordinary_429"},
+    )
+    error = siwc._response_error(response)
+    assert isinstance(error, siwc.SIWCRequestError)
+    assert not isinstance(error, siwc.SIWCUsageLimitReached)
+    assert error.status_code == 429
+    assert error.error_code == "rate_limit_exceeded"
+
+
+def test_plan_usage_limit_code_is_reported_distinctly():
+    response = httpx.Response(
+        429,
+        json={"error": {"code": "subscription_sharing_usage_limit_exceeded"}},
+        headers={"x-request-id": "req_usage_limit"},
+    )
+    error = siwc._response_error(response)
+    assert isinstance(error, siwc.SIWCUsageLimitReached)
+    assert error.error_code == "subscription_sharing_usage_limit_exceeded"
