@@ -13,6 +13,7 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | iCloud UID handling for no-Message-ID mail | Built | Stored UID is bound to mailbox UIDVALIDITY; stale IDs are blocked. |
 | Provider-confirmed read and Trash | Built | Real-account validation pending. |
 | Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
+| Forward drafts and approval | Built | Separate internal draft; source-account From; optional original attachments; sent outside original thread; explicit approval and uncertain-send protection. |
 | Follow-ups workspace | Built | All/Action Required/Awaiting Response filters, overdue state, open source email, edit, snooze, complete and remove tracking item without changing the email. |
 | Follow-up lifecycle tests | Built | API integration test covers edit, snooze visibility, unsnooze, complete, remove and retention of source email. |
 | Linked email conversations | Built | Authenticated link/unlink controls; backfills existing thread, appends future syncs once, retains history and deduplication ledger after unlink; Gmail native thread IDs and iCloud References/In-Reply-To root keys. |
