@@ -22,3 +22,5 @@
 .modal-description{font-size:11px;line-height:1.55;color:#768292;margin:0}
 @media(max-width:900px){.followup-row{flex-direction:column}.followup-actions{justify-content:flex-start;max-width:none}}
 @media(max-width:700px){.followup-filters{gap:6px}.followup-filters button{font-size:10px;padding:7px 8px}.followup-actions{width:100%}.followup-actions .button{flex:1}}
+
+.settings-links{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
