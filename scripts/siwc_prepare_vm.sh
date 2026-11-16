@@ -17,7 +17,7 @@ if [[ -f "$HOST_ID_PATH" ]]; then
   }
 else
   HOST_ID="$(python3 -c 'import uuid; print("urn:uuid:" + str(uuid.uuid4()))')"
-  TEMP_FILE="$\{HOST_ID_PATH}.tmp.$$"
+  TEMP_FILE="${HOST_ID_PATH}.tmp.$"
   printf '%s' "$HOST_ID" > "$TEMP_FILE"
   chmod 600 "$TEMP_FILE"
   mv "$TEMP_FILE" "$HOST_ID_PATH"
