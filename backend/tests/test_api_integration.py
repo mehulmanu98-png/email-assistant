@@ -8,7 +8,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.main import app
 import app.main as main_module
-from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, AIConversation
+from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, AIConversation, AppleDevice, AppleDeviceCommand
 from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
 
@@ -571,3 +571,117 @@ def test_forward_creation_is_blocked_while_prior_send_result_is_uncertain():
         blocked = client.post(f"/api/messages/{message_id}/forward")
         assert blocked.status_code == 409
         assert "Sent folder" in blocked.json()["detail"]
+
+
+def test_apple_device_enrollment_command_lease_and_confirmed_native_receipt():
+    with TestClient(app) as client:
+        login(client)
+        enrollment = client.post("/api/apple/devices/enrollment", json={
+            "device_name": "Mehul MacBook",
+        })
+        assert enrollment.status_code == 200
+        enrollment_token = enrollment.json()["enrollment_token"]
+
+        enrolled = client.post("/api/apple/device/enroll", json={
+            "enrollment_token": enrollment_token,
+            "device_name": "Mehul MacBook",
+        })
+        assert enrolled.status_code == 200
+        device_token = enrolled.json()["device_token"]
+        device_id = enrolled.json()["device_id"]
+
+        reused = client.post("/api/apple/device/enroll", json={
+            "enrollment_token": enrollment_token,
+            "device_name": "Second device",
+        })
+        assert reused.status_code == 401
+
+        devices = client.get("/api/apple/devices")
+        assert devices.status_code == 200
+        assert devices.json()[0]["id"] == device_id
+        assert "token_hash" not in devices.json()[0]
+        assert "device_token" not in devices.json()[0]
+
+        command_data = {
+            "command_type": "note",
+            "title": "Supplier quotation",
+            "body": "Review the revised extrusion lamination quotation.",
+            "timezone": "Asia/Kolkata",
+            "idempotency_key": str(uuid.uuid4()),
+        }
+        queued = client.post("/api/apple/commands", json=command_data)
+        assert queued.status_code == 200
+        command_id = queued.json()["id"]
+        assert queued.json()["status"] == "pending_on_device"
+
+        duplicate = client.post("/api/apple/commands", json=command_data)
+        assert duplicate.status_code == 200
+        assert duplicate.json()["id"] == command_id
+
+        pending = client.get("/api/apple/commands").json()
+        assert any(item["id"] == command_id and item["status"] == "pending_on_device" for item in pending)
+
+        headers = {"X-Apple-Device-Token": device_token}
+        polled = client.post("/api/apple/device/commands/poll", headers=headers)
+        assert polled.status_code == 200
+        lease = polled.json()["commands"][0]
+        assert lease["id"] == command_id
+        assert lease["command_type"] == "note"
+        assert lease["payload"]["title"] == "Supplier quotation"
+        assert lease["lease_token"]
+
+        leased = client.get("/api/apple/commands").json()
+        assert next(item for item in leased if item["id"] == command_id)["status"] == "leased"
+
+        completed = client.post(
+            f"/api/apple/device/commands/{command_id}/result",
+            headers=headers,
+            json={
+                "lease_token": lease["lease_token"],
+                "success": True,
+                "native_record_id": "apple-note-id-123",
+            },
+        )
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "completed"
+        assert completed.json()["result"]["native_record_id"] == "apple-note-id-123"
+        assert completed.json()["completed_at"] is not None
+
+        replay = client.post(
+            f"/api/apple/device/commands/{command_id}/result",
+            headers=headers,
+            json={
+                "lease_token": lease["lease_token"],
+                "success": True,
+                "native_record_id": "apple-note-id-123",
+            },
+        )
+        assert replay.status_code == 404
+
+        revoked = client.delete(f"/api/apple/devices/{device_id}")
+        assert revoked.status_code == 200
+        rejected_poll = client.post("/api/apple/device/commands/poll", headers=headers)
+        assert rejected_poll.status_code == 401
+
+
+def test_apple_reminder_requires_due_time_and_uses_idempotency():
+    with TestClient(app) as client:
+        login(client)
+        invalid = client.post("/api/apple/commands", json={
+            "command_type": "reminder",
+            "title": "Call supplier",
+            "timezone": "Asia/Kolkata",
+            "idempotency_key": str(uuid.uuid4()),
+        })
+        assert invalid.status_code == 422
+        valid = client.post("/api/apple/commands", json={
+            "command_type": "reminder",
+            "title": "Call supplier",
+            "body": "Discuss delivery schedule.",
+            "due_at": "2026-11-17T15:30:00",
+            "timezone": "Asia/Kolkata",
+            "idempotency_key": str(uuid.uuid4()),
+        })
+        assert valid.status_code == 200
+        assert valid.json()["status"] == "pending_on_device"
+        assert valid.json()["payload"]["due_at"].endswith("+00:00")
