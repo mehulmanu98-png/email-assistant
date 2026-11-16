@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     auto_sync_times: str = "08:00,12:00,17:00"
     initial_sync_days: int = 90
     max_messages_per_sync: int = 500
+    cloud_project_id: str = ""
+    cloud_region: str = ""
+    mail_worker_job: str = ""
 
 @lru_cache
 def get_settings() -> Settings:
