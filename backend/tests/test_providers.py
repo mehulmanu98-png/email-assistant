@@ -39,3 +39,48 @@ def test_uidvalidity_helper_reads_numeric_mailbox_identity():
 def test_uidvalidity_helper_rejects_non_numeric_response():
     from app.providers import _read_icloud_uidvalidity
     assert _read_icloud_uidvalidity(FakeIMAP(validity=b"not-a-number")) is None
+
+
+def test_icloud_original_attachment_metadata_and_bytes_are_read_only(monkeypatch):
+    from email.message import EmailMessage as MIMEMessage
+    from app import providers
+    from app.models import EmailAccount
+
+    original = MIMEMessage()
+    original["From"] = "sender@example.com"
+    original["To"] = "owner@example.com"
+    original["Subject"] = "Original with invoice"
+    original.set_content("Please find the invoice attached.")
+    original.add_attachment(
+        b"%PDF-1.7 test content",
+        maintype="application",
+        subtype="pdf",
+        filename="invoice.pdf",
+    )
+    raw = original.as_bytes()
+
+    class FakeAttachmentIMAP:
+        def select(self, mailbox, readonly=True):
+            return "OK", [b"1"]
+        def uid(self, *args):
+            return "OK", [(b"1 (BODY.PEEK[])", raw)]
+        def logout(self):
+            return "BYE"
+
+    fake = FakeAttachmentIMAP()
+    monkeypatch.setattr(providers, "_connect", lambda account: (fake, "unused"))
+    monkeypatch.setattr(providers, "_find_icloud_uid", lambda client, message_id: b"1")
+    account = EmailAccount(
+        id=1, user_id=1, provider="icloud", email="owner@example.com",
+        encrypted_secret="unused", connection_status="connected"
+    )
+
+    metadata = providers.list_icloud_attachments(account, "icloud-uidv-123-1")
+    assert len(metadata) == 1
+    assert metadata[0]["filename"] == "invoice.pdf"
+    assert metadata[0]["mime_type"] == "application/pdf"
+    assert metadata[0]["can_preview"] is True
+
+    downloaded = providers.get_icloud_attachment(account, "icloud-uidv-123-1", 0)
+    assert downloaded["data"] == b"%PDF-1.7 test content"
+    assert downloaded["filename"] == "invoice.pdf"
