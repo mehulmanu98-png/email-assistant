@@ -234,9 +234,6 @@ def get_email_thread_link(db: Session, user_id: int, message_id: int) -> dict | 
     conversation = db.get(AIConversation, link.conversation_id)
     if not conversation or conversation.user_id != user_id:
         return None
-    item_count = db.scalar(select(EmailConversationItem.id).where(
-        EmailConversationItem.link_id == link.id
-    ))
     from sqlalchemy import func
     count = db.scalar(select(func.count()).select_from(EmailConversationItem).where(
         EmailConversationItem.link_id == link.id
