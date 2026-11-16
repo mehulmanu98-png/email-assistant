@@ -231,7 +231,7 @@ class UserSettings(Base):
     __tablename__ = "user_settings"
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), unique=True, index=True)
-    sync_times: Mapped[list] = mapped_column(JSON, default=lambda: ["08:00", "11:00", "14:00", "17:00"])
+    sync_times: Mapped[list] = mapped_column(JSON, default=lambda: ["08:00", "12:00", "17:00"])
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
