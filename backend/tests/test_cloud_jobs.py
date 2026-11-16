@@ -12,7 +12,11 @@ def test_cloud_worker_trigger_uses_runtime_metadata_token(monkeypatch):
 
     def fake_get(url, headers=None, timeout=None, **kwargs):
         calls["metadata"] = {"url": url, "headers": headers, "timeout": timeout}
-        return httpx.Response(200, json={"access_token": "test-runtime-token"})
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={"access_token": "test-runtime-token"},
+        )
 
     def fake_post(url, headers=None, content=None, timeout=None, **kwargs):
         calls["run"] = {
