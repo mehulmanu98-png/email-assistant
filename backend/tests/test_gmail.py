@@ -113,5 +113,6 @@ def test_gmail_forward_builds_new_message_without_original_thread_id(monkeypatch
     parts = list(parsed.walk())
     assert any(part.get_filename() == "contract.pdf" for part in parts)
     body = next(part for part in parts if part.get_content_type() == "text/plain")
-    assert "Original contract text" in body.get_content()
-    assert "Please review." in body.get_content()
+    body_text = body.get_payload(decode=True).decode(body.get_content_charset() or "utf-8")
+    assert "Original contract text" in body_text
+    assert "Please review." in body_text
