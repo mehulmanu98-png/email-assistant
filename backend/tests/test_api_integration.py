@@ -998,7 +998,17 @@ def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
     from app.models import LoginThrottle
     from app.main import _login_identifier_hash
 
-    email = f"unknown-{uuid.uuid4().hex}@example.com"
+    email = settings.bootstrap_email
+    identifier_hash = _login_identifier_hash(email)
+    db = SessionLocal()
+    try:
+        old = db.scalar(select(LoginThrottle).where(LoginThrottle.identifier_hash == identifier_hash))
+        if old:
+            db.delete(old)
+            db.commit()
+    finally:
+        db.close()
+
     with TestClient(app) as client:
         for attempt in range(5):
             failed = client.post("/api/auth/login", json={
@@ -1015,7 +1025,7 @@ def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
         db = SessionLocal()
         try:
             throttle = db.scalar(select(LoginThrottle).where(
-                LoginThrottle.identifier_hash == _login_identifier_hash(email)
+                LoginThrottle.identifier_hash == identifier_hash
             ))
             assert throttle is not None
             throttle.window_started_at = datetime.now(timezone.utc) - timedelta(minutes=16)
@@ -1028,6 +1038,15 @@ def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
             "email": email, "password": "not-the-correct-password",
         })
         assert reset_window.status_code == 401
+
+        db = SessionLocal()
+        try:
+            throttle = db.scalar(select(LoginThrottle).where(
+                LoginThrottle.identifier_hash == identifier_hash
+            ))
+            assert throttle is not None and throttle.failed_attempts == 1
+        finally:
+            db.close()
 
 
 def test_successful_login_clears_failed_login_counter():
