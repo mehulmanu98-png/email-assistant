@@ -670,6 +670,7 @@ def add_task(data: TaskIn, user: User = Depends(current_user), db: Session = Dep
     priority = effective_priority(data.priority, data.deadline_at, data.deadline_type, False)
     item = AITask(
         user_id=user.id, title=data.title, instructions=data.instructions,
+        status="waiting_for_user",
         base_priority=data.priority, effective_priority=priority,
         deadline_type=data.deadline_type, deadline_at=data.deadline_at,
         scheduled_start_at=data.scheduled_start_at,
