@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import secrets
+import re
 from datetime import datetime, timedelta, timezone
 from email.utils import getaddresses
 from urllib.parse import urlencode, quote
@@ -408,6 +409,8 @@ def message_attachments(
         else:
             raise RuntimeError("Unsupported provider.")
         return {"message_id": row.id, "attachments": items}
+    except ValueError as exc:
+        raise HTTPException(413, str(exc))
     except Exception as exc:
         raise HTTPException(502, f"Original attachments could not be listed ({type(exc).__name__}).")
 
@@ -442,10 +445,20 @@ def message_attachment(
         raise HTTPException(502, f"Original attachment could not be retrieved ({type(exc).__name__}).")
 
     mime_type = attachment["mime_type"] or "application/octet-stream"
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9!#    mime_type = attachment["mime_type"] or "application/octet-stream"
     can_inline = mime_type == "application/pdf" or mime_type.startswith("image/")
     disposition = "inline" if inline and can_inline else "attachment"
     filename = str(attachment["filename"] or "attachment").replace("\\r", "_").replace("\\n", "_").replace('"', "_")
-    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"
+    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#    mime_type = attachment["mime_type"] or "application/octet-stream"
+    can_inline = mime_type == "application/pdf" or mime_type.startswith("image/")
+    disposition = "inline" if inline and can_inline else "attachment"
+    filename = str(attachment["filename"] or "attachment").replace("\\r", "_").replace("\\n", "_").replace('"', "_")
+    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename)}"^_.+-]*", mime_type):
+        mime_type = "application/octet-stream"
+    can_inline = mime_type == "application/pdf" or mime_type in {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"}
+    disposition = "inline" if inline and can_inline else "attachment"
+    filename = str(attachment["filename"] or "attachment").replace(chr(13), "_").replace(chr(10), "_").replace('"', "_").replace("/", "_").replace(chr(92), "_")
+    content_disposition = f"{disposition}; filename*=UTF-8''{quote(filename, safe='')}"
     return Response(
         content=attachment["data"],
         media_type=mime_type,
