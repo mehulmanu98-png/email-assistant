@@ -12,6 +12,7 @@ from .db import SessionLocal, init_db
 from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease
 from .providers import sync_icloud
 from .gmail import sync_gmail
+from .conversation_sync import append_linked_email_messages
 from .config import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -119,8 +120,12 @@ def run_once() -> bool:
                 count = sync_gmail(db, account, settings.max_messages_per_sync)
             else:
                 raise RuntimeError("Unsupported provider.")
+            linked_updates = append_linked_email_messages(db, account.id)
             job.status = "completed"
-            job.details = f"Imported {count} new messages."
+            job.details = (
+                f"Imported {count} new messages; appended {linked_updates} new message(s) "
+                "to linked Email Assistant conversations."
+            )
         except Exception as exc:
             if job.attempt_count < MAX_SYNC_ATTEMPTS:
                 delay = retry_delay(job.attempt_count)
