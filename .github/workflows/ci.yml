@@ -12,7 +12,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r backend/requirements.txt
-      - run: python -m compileall -q app
+      - run: python -m compileall -q app ../scripts
         working-directory: backend
       - run: PYTHONPATH="$PWD" pytest -q
         working-directory: backend
@@ -27,5 +27,5 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
-      - run: bash -n scripts/setup-local.sh scripts/deploy-cloud-run.sh
+      - run: bash -n scripts/setup-local.sh scripts/deploy-cloud-run.sh scripts/siwc_prepare_vm.sh
       - run: docker build -t email-assistant-cloud-run .
