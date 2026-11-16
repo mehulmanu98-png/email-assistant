@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db, init_db
 from .models import (
-    User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, FollowUp, AITask,
+    User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
     AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, AppleDevice,
     AppleDeviceEnrollment, AppleDeviceCommand, utcnow
 )
@@ -28,7 +28,7 @@ from .security import (
 )
 from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
-    DraftIn, ForwardDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn,
+    DraftIn, ForwardDraftIn, OutboundDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn,
     UserSettingsPatchIn, ReadStateIn, AppleEnrollmentCreateIn, AppleDeviceEnrollIn, AppleCommandIn,
     AppleDeviceCommandResultIn
 )
@@ -597,6 +597,159 @@ def block_sender(message_id: int, user: User = Depends(current_user), db: Sessio
         db.add(BlockedSender(user_id=user.id, address=address))
         db.commit()
     return {"blocked": address, "scope": "app_only", "provider_blocking": False}
+
+def outbound_draft_out(draft: OutboundDraft, account: EmailAccount | None = None):
+    return {
+        "id": draft.id,
+        "account_id": draft.account_id,
+        "to": draft.to_json,
+        "cc": draft.cc_json,
+        "bcc": draft.bcc_json,
+        "subject": draft.subject,
+        "body": draft.body,
+        "status": draft.status,
+        "provider_sent_id": draft.provider_sent_id,
+        "created_at": draft.created_at,
+        "updated_at": draft.updated_at,
+        "from_account": account.email if account else None,
+    }
+
+
+def _owned_connected_account(db: Session, user_id: int, account_id: int):
+    account = db.scalar(select(EmailAccount).where(
+        EmailAccount.id == account_id,
+        EmailAccount.user_id == user_id,
+    ))
+    if not account or account.connection_status != "connected":
+        raise HTTPException(409, "Select a connected email account for the From address.")
+    if account.provider not in {"icloud", "gmail"}:
+        raise HTTPException(422, "This email provider cannot send outgoing messages.")
+    return account
+
+
+@app.get("/api/outbound-drafts")
+def list_outbound_drafts(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(OutboundDraft).where(
+        OutboundDraft.user_id == user.id,
+        OutboundDraft.status == "draft",
+    ).order_by(desc(OutboundDraft.updated_at)).limit(50)).all()
+    output = []
+    for row in rows:
+        account = db.get(EmailAccount, row.account_id)
+        output.append(outbound_draft_out(row, account))
+    return output
+
+
+@app.post("/api/outbound-drafts")
+def create_outbound_draft(
+    data: OutboundDraftIn, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    account = _owned_connected_account(db, user.id, data.account_id)
+    draft = OutboundDraft(
+        user_id=user.id,
+        account_id=account.id,
+        to_json=[str(value) for value in data.to],
+        cc_json=[str(value) for value in data.cc],
+        bcc_json=[str(value) for value in data.bcc],
+        subject=data.subject,
+        body=data.body,
+        status="draft",
+    )
+    db.add(draft)
+    db.commit()
+    db.refresh(draft)
+    return outbound_draft_out(draft, account)
+
+
+@app.patch("/api/outbound-drafts/{draft_id}")
+def save_outbound_draft(
+    draft_id: int, data: OutboundDraftIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    draft = db.scalar(select(OutboundDraft).where(
+        OutboundDraft.id == draft_id,
+        OutboundDraft.user_id == user.id,
+    ))
+    if not draft:
+        raise HTTPException(404, "Outbound draft not found")
+    if draft.status in {"sent", "sending", "send_uncertain"}:
+        raise HTTPException(409, "This draft can no longer be edited because sending has started or completed.")
+    account = _owned_connected_account(db, user.id, data.account_id)
+    draft.account_id = account.id
+    draft.to_json = [str(value) for value in data.to]
+    draft.cc_json = [str(value) for value in data.cc]
+    draft.bcc_json = [str(value) for value in data.bcc]
+    draft.subject = data.subject
+    draft.body = data.body
+    draft.status = "draft"
+    db.commit()
+    db.refresh(draft)
+    return outbound_draft_out(draft, account)
+
+
+@app.post("/api/outbound-drafts/{draft_id}/send")
+def send_outbound_draft(
+    draft_id: int, approval: SendApprovalIn,
+    user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    draft = db.scalar(select(OutboundDraft).where(
+        OutboundDraft.id == draft_id,
+        OutboundDraft.user_id == user.id,
+    ).with_for_update())
+    if not draft:
+        raise HTTPException(404, "Outbound draft not found")
+    if not approval.confirm_send:
+        raise HTTPException(400, "Explicit final approval is required.")
+    if draft.status == "sent":
+        raise HTTPException(409, "This email has already been accepted by the provider.")
+    if draft.status in {"sending", "send_uncertain"}:
+        raise HTTPException(409, "The previous send result is uncertain. Check the selected account's Sent folder before retrying.")
+
+    actual = draft.updated_at
+    if actual and actual.tzinfo is None:
+        actual = actual.replace(tzinfo=timezone.utc)
+    expected = approval.expected_updated_at
+    if expected.tzinfo is None:
+        expected = expected.replace(tzinfo=timezone.utc)
+    if not actual or abs((actual - expected).total_seconds()) > 2:
+        raise HTTPException(409, "The draft changed after it was displayed. Save and review the latest version before sending.")
+
+    recipients = list(draft.to_json or []) + list(draft.cc_json or []) + list(draft.bcc_json or [])
+    if not recipients:
+        raise HTTPException(422, "Add at least one recipient before sending.")
+    if not draft.subject.strip() or not draft.body.strip():
+        raise HTTPException(422, "Subject and message body must not be empty.")
+    account = _owned_connected_account(db, user.id, draft.account_id)
+
+    # Record the one-way state before network I/O so repeated clicks cannot send twice.
+    draft.status = "sending"
+    db.commit()
+    try:
+        if account.provider == "icloud":
+            provider_id = send_icloud(
+                account, list(draft.to_json or []), list(draft.cc_json or []),
+                list(draft.bcc_json or []), draft.subject, draft.body, None
+            )
+        else:
+            provider_id = send_gmail(
+                db, account, list(draft.to_json or []), list(draft.cc_json or []),
+                list(draft.bcc_json or []), draft.subject, draft.body, None
+            )
+    except Exception as exc:
+        draft.status = "send_uncertain"
+        db.commit()
+        raise HTTPException(502, f"The provider send result could not be confirmed ({type(exc).__name__}). Check the selected account's Sent folder before retrying.")
+
+    draft.status = "sent"
+    draft.provider_sent_id = provider_id
+    db.commit()
+    return {
+        "status": "sent",
+        "provider_accepted": True,
+        "delivery_confirmed": False,
+        "note": "The selected source provider accepted the email; final delivery is not confirmed.",
+    }
+
 
 def draft_out(draft: ReplyDraft, account: EmailAccount | None = None):
     return {
