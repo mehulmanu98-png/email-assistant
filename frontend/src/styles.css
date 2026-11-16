@@ -53,3 +53,30 @@
 .attachment-image-stage{flex:1;min-height:0;overflow:auto;background:#f2f4f7;display:grid;place-items:center;padding:18px}
 .attachment-image-stage img{max-width:100%;max-height:100%;object-fit:contain}
 @media(max-width:700px){.attachment-row{align-items:flex-start;flex-wrap:wrap}.attachment-info{min-width:calc(100% - 48px)}.attachment-buttons{width:100%;padding-left:43px}.attachment-buttons .button{flex:1}.attachment-viewer{height:94vh;width:100%}.attachment-viewer-head{align-items:flex-start;flex-wrap:wrap}}
+
+.apple-bridge{margin-top:18px}
+.apple-enroll-row{display:flex;gap:8px;align-items:center;margin:10px 0}
+.apple-enroll-row input{flex:1;min-width:180px}
+.apple-enrollment-code{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;background:#f6f8fb;border:1px solid #e4e9ef;border-radius:9px;padding:12px;margin:10px 0}
+.apple-enrollment-code b,.apple-enrollment-code small{display:block}
+.apple-enrollment-code b{font-size:11px}.apple-enrollment-code small{font-size:10px;color:#84909f;margin-top:3px}
+.apple-enrollment-code code{grid-column:1/-1;display:block;overflow-wrap:anywhere;padding:9px;background:#fff;border:1px dashed #ccd5e0;border-radius:6px;font-size:12px}
+.apple-enrollment-code>small{grid-column:1/-1;line-height:1.5}
+.apple-device-row,.apple-command-row{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid #eef1f4}
+.apple-device-row b,.apple-device-row small,.apple-command-info b,.apple-command-info small{display:block}
+.apple-device-row b,.apple-command-info b{font-size:11px}.apple-device-row small,.apple-command-info small{font-size:10px;color:#8792a0;margin-top:3px}
+.apple-command-heading{margin-top:18px}
+.apple-command-icon{width:30px;height:30px;flex:none;border-radius:8px;background:#eef2f7;color:#62748b;display:grid;place-items:center}
+.apple-command-info{min-width:130px;flex:1}
+.apple-command-state{font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.03em;padding:5px 7px;border-radius:20px;background:#f1f3f5;color:#7c8795;white-space:nowrap}
+.apple-command-state.pending_on_device{background:#fff4df;color:#92641a}
+.apple-command-state.leased{background:#e9f1ff;color:#46688e}
+.apple-command-state.completed{background:#e8f5ec;color:#3e7952}
+.apple-command-state.failed{background:#fdecec;color:#a34e4e}
+.apple-command-state.cancelled{background:#f1f1f1;color:#858585}
+.apple-command-actions{display:flex;gap:5px;flex:none}
+.apple-command-error{color:#a34e4e!important}
+.settings-muted,.apple-pending-note{font-size:10px;line-height:1.55;color:#8994a1}
+.apple-pending-note{padding:8px 10px;background:#fff8e9;border:1px solid #f1e4c8;border-radius:7px}
+.apple-command-modal textarea{min-height:100px}
+@media(max-width:700px){.apple-enroll-row{align-items:stretch;flex-direction:column}.apple-command-row{flex-wrap:wrap;align-items:flex-start}.apple-command-info{min-width:calc(100% - 48px)}.apple-command-state{margin-left:40px}.apple-command-actions{margin-left:auto}.apple-enrollment-code{grid-template-columns:1fr}.apple-enrollment-code code,.apple-enrollment-code>small{grid-column:1}}
