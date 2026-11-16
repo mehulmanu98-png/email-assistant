@@ -31,7 +31,8 @@ Prerequisites: your Neon project (already created), a Google Cloud project with 
 4. Run `bash scripts/deploy-cloud-run.sh`. It asks for the project ID, Neon connection URI, dashboard login email/password and optional Google OAuth Web client credentials. It generates random application secrets on first deployment and stores them in Google Secret Manager. On redeployment it preserves the existing dashboard bootstrap login, JWT signing key and mailbox-encryption key so saved provider credentials remain decryptable.
 5. The script deploys the dashboard/API to Cloud Run, deploys a one-shot Cloud Run worker job, tests its Neon connection, grants the scheduler identity permission to invoke that job, and creates one Cloud Scheduler job that triggers every 15 minutes.
 6. The script prints the Cloud Run dashboard URL and Gmail OAuth callback URI. Add that exact callback URI to your Google OAuth Web application client. Gmail OAuth cannot connect until the matching Google OAuth client credentials are configured.
-7. Open the dashboard URL and sign in with the dashboard credentials. Connect a test iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
+7. If you left the Google OAuth fields blank on the first deployment, create the Web OAuth client after you have the callback URI, then run `bash scripts/deploy-cloud-run.sh` again and enter the new client ID/secret when prompted. The script preserves the existing Neon URL, dashboard login, JWT key and mailbox-encryption key on redeployment.
+8. Open the dashboard URL and sign in with the dashboard credentials. Connect a test iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
 8. Check Cloud Scheduler job **email-assistant-mail-sync** and Cloud Run job **email-assistant-mail-worker** in the Google Cloud console. Confirm successful executions and that messages appear in the dashboard.
 
 The GitHub `NEON_DATABASE_URL` secret you saved earlier is not used by the primary Cloud Scheduler route; you may leave it there. The app's database URL is stored in Google Secret Manager for Cloud Run and the scheduled worker.
@@ -48,6 +49,7 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 - Read-state and Trash are only updated locally after provider confirmation.
 - Replies default to Reply All recipient handling where headers permit, allow edits to To/CC/BCC, lock From to the original account, and require a separate send approval.
 - Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
+- Manual Sync Now queues work in Neon; the cloud worker checks for queued work every 15 minutes, so a manual sync may not begin immediately.
 - The raw message is hidden until you choose **Show original email**.
 - Background job failures are retried with bounded backoff and interrupted work is recovered.
 
