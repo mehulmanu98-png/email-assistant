@@ -13,6 +13,17 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
+class LoginThrottle(Base):
+    """Persistent failed-login counter keyed by a one-way, secret-derived identifier hash."""
+    __tablename__ = "login_throttles"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    identifier_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    blocked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, index=True)
+
+
 class EmailAccount(Base):
     __tablename__ = "email_accounts"
     id: Mapped[int] = mapped_column(primary_key=True)
