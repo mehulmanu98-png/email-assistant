@@ -13,17 +13,19 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | iCloud UID handling for no-Message-ID mail | Built | Stored UID is bound to mailbox UIDVALIDITY; stale IDs are blocked. |
 | Provider-confirmed read and Trash | Built | Real-account validation pending. |
 | Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
+| Follow-ups workspace | Built | All/Action Required/Awaiting Response filters, overdue state, open source email, edit, snooze, complete and remove tracking item without changing the email. |
 | User-editable sync times and missed-slot catch-up | Built | Uses timezone-aware due-slot state and unique schedule-run keys. |
 | Bounded worker retries and stale-job recovery | Built | Retries at 5/10-minute intervals; requeues interrupted jobs. |
 | Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
 | Sync job visibility in dashboard | Built | Recent job activity shown under Accounts & Settings. |
-| Cloud Run dashboard/API deployment | Prepared | No Google Cloud project/deployment yet. |
+| Cloud Run dashboard/API deployment | Prepared | Deployment script is ready. No completed Cloud Run deployment is recorded in the repository; confirm GCP project and billing state in the console. |
 | Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. |
 | Cloud Scheduler background trigger | Prepared | One job every 15 minutes in Asia/Kolkata; can run with laptop off. |
-| Neon database | User setup completed | Project created; GitHub NEON_DATABASE_URL secret saved. Connection has not yet been tested by app. |
+| Neon database | Created | Free-tier Email Assistant project and production branch are ready. Direct inspection on 16 Nov 2026 found no application tables; first successful app startup should initialise them. |
 | No notifications | Built | No proactive notification delivery. |
-| AI summaries/replies/task execution | Disabled | No AI API billing or paid fallback. |
+| AI summaries/replies/task execution | Blocked pending approval | ChatGPT Go can be eligible in supported apps, but this app has no commercial SIWC approval. Official open-source DevKit is noncommercial and is not used for business email processing. No API/credits fallback. |
 | Attachments and Apple Notes/Reminders | Not built | |
+| OpenAI commercial SIWC approval | Pending | Owner must request approval; do not embed the noncommercial DevKit for business use. |
 | Live provider acceptance test | Pending | Must test with non-critical mailbox. |
 | Production audit, backups/restore, rate limits and independent security review | Pending | Complete before relying on critical business email. |
 
