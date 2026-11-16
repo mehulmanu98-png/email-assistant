@@ -7,6 +7,7 @@ browser storage, logs, or source control.
 from __future__ import annotations
 
 import fcntl
+import hmac
 import json
 import os
 import stat
@@ -130,9 +131,16 @@ def save_credentials(path: str | Path, payload: dict[str, Any]) -> Path:
 def load_credentials(path: str | Path | None = None) -> dict[str, Any]:
     target = Path(path).expanduser() if path else default_credentials_path()
     try:
-        mode = stat.S_IMODE(target.stat().st_mode)
+        if target.is_symlink():
+            raise SIWCError("SIWC credential file must not be a symbolic link.")
+        file_stat = target.stat()
+        if not stat.S_ISREG(file_stat.st_mode):
+            raise SIWCError("SIWC credential path must be a regular file.")
+        mode = stat.S_IMODE(file_stat.st_mode)
         if mode & 0o077:
             raise SIWCError("SIWC credential file permissions are too broad; require mode 0600.")
+        if hasattr(os, "getuid") and file_stat.st_uid != os.getuid():
+            raise SIWCError("SIWC credential file must be owned by the current runtime user.")
         with target.open("r", encoding="utf-8") as stream:
             record = json.load(stream)
     except FileNotFoundError as exc:
@@ -228,7 +236,7 @@ def verify_id_token(
             options={"verify_at_hash": False},
         )
         actual_nonce = str(claims.get("nonce") or "")
-        if not actual_nonce or not __import__("hmac").compare_digest(actual_nonce, nonce):
+        if not actual_nonce or not hmac.compare_digest(actual_nonce, nonce):
             raise SIWCError("The ID token nonce did not match this sign-in attempt.")
         if not claims.get("sub"):
             raise SIWCError("The ID token has no validated subject.")
@@ -314,16 +322,19 @@ def get_access_token(
                 except httpx.HTTPError as exc:
                     raise SIWCRequestError("OpenAI token discovery is temporarily unavailable.") from exc
             token_endpoint = str(discovery or OPENAI_TOKEN_FALLBACK)
-            response = client.post(
-                token_endpoint,
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": str(record["client_id"]),
-                    "refresh_token": refresh_token,
-                    "resource": OPENAI_RESOURCE,
-                },
-                timeout=30,
-            )
+            try:
+                response = client.post(
+                    token_endpoint,
+                    data={
+                        "grant_type": "refresh_token",
+                        "client_id": str(record["client_id"]),
+                        "refresh_token": refresh_token,
+                        "resource": OPENAI_RESOURCE,
+                    },
+                    timeout=30,
+                )
+            except httpx.HTTPError as exc:
+                raise SIWCRequestError("OpenAI token refresh is temporarily unavailable.") from exc
             if response.status_code >= 400:
                 try:
                     details = response.json()
