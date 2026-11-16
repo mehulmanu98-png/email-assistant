@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, JSON, Index
+from sqlalchemy import String, Text, Boolean, DateTime, ForeignKey, JSON, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -113,6 +113,8 @@ class SyncJob(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id", ondelete="CASCADE"), index=True)
     status: Mapped[str] = mapped_column(String(20), default="queued")
     details: Mapped[str] = mapped_column(Text, default="")
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

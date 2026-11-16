@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from .db import SessionLocal, init_db
 from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings
 from .providers import sync_icloud
@@ -14,6 +14,12 @@ from .config import settings
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("email-assistant-worker")
+MAX_SYNC_ATTEMPTS = 3
+
+
+def retry_delay(attempt_count: int) -> timedelta:
+    """Bound transient sync retries with short exponential backoff."""
+    return timedelta(minutes=5 * (2 ** max(0, attempt_count - 1)))
 
 
 def due_sync_slots(now_local: datetime, times: list[str], grace_minutes: int = 30) -> list[str]:
@@ -37,10 +43,15 @@ def due_sync_slots(now_local: datetime, times: list[str], grace_minutes: int = 3
 def run_once() -> bool:
     db = SessionLocal()
     try:
-        job = db.scalar(select(SyncJob).where(SyncJob.status == "queued").order_by(SyncJob.id).with_for_update(skip_locked=True))
+        now = datetime.now(timezone.utc)
+        job = db.scalar(select(SyncJob).where(
+            SyncJob.status == "queued",
+            or_(SyncJob.available_at.is_(None), SyncJob.available_at <= now)
+        ).order_by(SyncJob.id).with_for_update(skip_locked=True))
         if not job:
             return False
         job.status = "running"
+        job.attempt_count = (job.attempt_count or 0) + 1
         db.commit()
         account = db.get(EmailAccount, job.account_id)
         if not account or account.connection_status == "disconnected":
@@ -58,10 +69,18 @@ def run_once() -> bool:
             job.status = "completed"
             job.details = f"Imported {count} new messages."
         except Exception as exc:
-            job.status = "failed"
-            job.details = f"Sync failed ({type(exc).__name__}). Check account connection and server configuration."
-            account.connection_status = "error"
-            log.warning("Mail sync failed for account %s (%s)", account.id, type(exc).__name__)
+            if job.attempt_count < MAX_SYNC_ATTEMPTS:
+                delay = retry_delay(job.attempt_count)
+                job.status = "queued"
+                job.available_at = datetime.now(timezone.utc) + delay
+                job.details = f"Sync attempt {job.attempt_count} failed ({type(exc).__name__}); retry queued."
+                log.warning("Sync attempt %s failed for account %s; retry in %s (%s)",
+                            job.attempt_count, account.id, delay, type(exc).__name__)
+            else:
+                job.status = "failed"
+                job.details = f"Sync failed after {job.attempt_count} attempts ({type(exc).__name__}). Check account connection and server configuration."
+                account.connection_status = "error"
+                log.warning("Sync failed permanently for account %s (%s)", account.id, type(exc).__name__)
         db.commit()
         return True
     finally:
@@ -75,8 +94,13 @@ def recover_stale_jobs(stale_minutes: int = 45) -> int:
     try:
         rows = db.scalars(select(SyncJob).where(SyncJob.status == "running", SyncJob.updated_at < cutoff)).all()
         for item in rows:
-            item.status = "queued"
-            item.details = "Recovered after an interrupted background worker."
+            if (item.attempt_count or 0) >= MAX_SYNC_ATTEMPTS:
+                item.status = "failed"
+                item.details = "Sync stopped after repeated worker interruptions. Start a new manual sync to retry."
+            else:
+                item.status = "queued"
+                item.available_at = datetime.now(timezone.utc)
+                item.details = "Recovered after an interrupted background worker."
         count = len(rows)
         db.commit()
         return count

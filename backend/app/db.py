@@ -51,6 +51,11 @@ def init_db():
     from . import models  # noqa: F401
     Base.metadata.create_all(bind=engine)
     _add_missing_columns("reply_drafts", {"provider_sent_id": "VARCHAR(500)"})
+    sync_time_type = "TIMESTAMP WITH TIME ZONE" if DATABASE_URL.get_backend_name() == "postgresql" else "DATETIME"
+    _add_missing_columns("sync_jobs", {
+        "attempt_count": "INTEGER NOT NULL DEFAULT 0",
+        "available_at": sync_time_type
+    })
     _add_missing_columns("email_accounts", {
         "icloud_sync_uid_cursor": "VARCHAR(128)",
         "icloud_sync_since": "VARCHAR(32)",

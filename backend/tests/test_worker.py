@@ -13,3 +13,10 @@ def test_schedule_slot_not_queued_before_its_time():
 def test_custom_schedule_and_invalid_values():
     now = datetime(2026, 11, 16, 14, 23, tzinfo=ZoneInfo("Asia/Kolkata"))
     assert due_sync_slots(now, ["14:10", "25:00", "14:10"], grace_minutes=30) == ["14:10"]
+
+def test_sync_retry_delay_is_exponential_and_bounded():
+    from app.worker import retry_delay
+    from datetime import timedelta
+    assert retry_delay(1) == timedelta(minutes=5)
+    assert retry_delay(2) == timedelta(minutes=10)
+    assert retry_delay(3) == timedelta(minutes=20)

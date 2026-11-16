@@ -69,7 +69,11 @@ def startup():
         db.close()
 
 @app.get("/api/health")
-def health():
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(select(1))
+    except Exception:
+        raise HTTPException(503, "Database unavailable")
     return {
         "status": "ok",
         "providers": {"icloud": "imap_smtp", "gmail": "google_oauth"},
