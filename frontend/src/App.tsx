@@ -10,6 +10,13 @@ const nav:{name:View;icon:typeof Inbox}[]=[
 function Empty({icon:Icon=Mail,title,detail,action}:{icon?:typeof Mail;title:string;detail:string;action?:ReactNode}){
  return <div className="empty"><Icon size={28}/><strong>{title}</strong><span>{detail}</span>{action}</div>;
 }
+function toLocalDateTime(value?:string|null){
+ if(!value)return "";
+ const date=new Date(value);
+ if(Number.isNaN(date.getTime()))return "";
+ const pad=(n:number)=>String(n).padStart(2,"0");
+ return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 function Login({onLogin}:{onLogin:(email:string,password:string)=>Promise<void>}){
  const [email,setEmail]=useState("");const [password,setPassword]=useState("");const [error,setError]=useState("");const [busy,setBusy]=useState(false);
  return <div className="login-page"><form className="login-card" onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");try{await onLogin(email,password)}catch(err){setError(err instanceof Error?err.message:"Sign-in failed")}finally{setBusy(false)}}}>
@@ -28,6 +35,8 @@ export default function App(){
  const [taskTitle,setTaskTitle]=useState(""),[taskText,setTaskText]=useState(""),[taskPriority,setTaskPriority]=useState("normal"),[deadline,setDeadline]=useState(""),[deadlineType,setDeadlineType]=useState("target");
  const [conversations,setConversations]=useState<any[]>([]),[conversation,setConversation]=useState<any>(null),[chatInput,setChatInput]=useState("");
  const [draft,setDraft]=useState<any>(null),[showOriginal,setShowOriginal]=useState(false);
+ const [followupFilter,setFollowupFilter]=useState<"all"|"action_required"|"awaiting_response">("all");
+ const [editingFollowup,setEditingFollowup]=useState<any>(null),[snoozingFollowup,setSnoozingFollowup]=useState<any>(null),[snoozeUntil,setSnoozeUntil]=useState("");
  const refresh=useCallback(async()=>{
   setBusy(true);
   try{const [m,a,f,t,c,s,j]=await Promise.all([api.messages(search),api.accounts(),api.followups(),api.tasks(),api.conversations(),api.settings(),api.syncJobs()]);
@@ -45,6 +54,9 @@ export default function App(){
  const createConversation=async()=>{try{const c=await api.newConversation("New conversation");setConversation(c);await refresh()}catch(err){setNotice(String(err))}};
  const selectConversation=async(id:number)=>{try{setConversation(await api.conversation(id))}catch(err){setNotice(String(err))}};
  const sendChat=async(e:FormEvent)=>{e.preventDefault();if(!conversation||!chatInput.trim())return;const content=chatInput;setChatInput("");try{await api.sendMessage(conversation.id,content)}catch(err){setNotice(err instanceof Error?err.message:"AI response unavailable")}finally{await selectConversation(conversation.id)}};
+ const openFollowupSource=async(id:number)=>{setView("Inbox");await openMessage({id})};
+ const saveFollowupEdit=async(e:FormEvent)=>{e.preventDefault();if(!editingFollowup)return;try{const {id,due_local,...data}=editingFollowup;data.due_at=due_local?new Date(due_local).toISOString():null;await api.updateFollowup(id,data);setEditingFollowup(null);setNotice("Follow-up updated.");await refresh()}catch(err){setNotice(err instanceof Error?err.message:String(err))}};
+ const saveFollowupSnooze=async(e:FormEvent)=>{e.preventDefault();if(!snoozingFollowup||!snoozeUntil)return;const until=new Date(snoozeUntil);if(Number.isNaN(until.getTime())||until.getTime()<=Date.now()){setNotice("Choose a future date and time to snooze this follow-up.");return;}try{await api.snoozeFollowup(snoozingFollowup.id,until.toISOString());setSnoozingFollowup(null);setSnoozeUntil("");setNotice("Follow-up snoozed until "+until.toLocaleString()+".");await refresh()}catch(err){setNotice(err instanceof Error?err.message:String(err))}};
  const createDraft=async()=>{if(!selected)return;try{setDraft(await api.createDraft(selected.id));setNotice("Reply-all draft created and linked to the original account.")}catch(err){setNotice(String(err))}};
  const saveDraft=async()=>{if(!draft)return;try{setDraft(await api.saveDraft(draft.id,draft));setNotice("Internal draft saved.")}catch(err){setNotice(String(err))}};
  const sendDraft=async()=>{if(!draft||draft.status==="sent")return;try{const saved=await api.saveDraft(draft.id,draft);setDraft(saved);const recipients=[...(saved.to||[]),...(saved.cc||[]),...(saved.bcc||[])].join(", ");const prompt="Send the saved version below?\n\nFrom: "+(saved.from_account||"original account")+"\nTo/CC/BCC: "+recipients+"\nSubject: "+saved.subject+"\n\nMessage:\n"+saved.body+"\n\nThe source provider may accept the message; final delivery is not guaranteed.";if(!window.confirm(prompt))return;const result=await api.sendDraft(saved.id,saved.updated_at);setNotice(result.provider_accepted?"The source provider accepted the email. Delivery is not yet confirmed.":"The provider did not confirm acceptance.");setDraft({...saved,status:"sent"});await refresh()}catch(err){setNotice(err instanceof Error?err.message:String(err));}};
@@ -52,12 +64,13 @@ export default function App(){
  if(user===false)return <Login onLogin={login}/>;
  const active=tasks.filter(t=>["queued","in_progress","waiting_for_user"].includes(t.status));
  const unread=messages.filter(m=>!m.is_read).length;
+ const visibleFollowups=followups.filter((f:any)=>followupFilter==="all"||f.status===followupFilter);
  return <div className="app-shell">
   <aside className="sidebar"><div className="brand"><div className="mark">M</div><div><b>Email Assistant</b><small>Private workspace</small></div></div><div className="nav-label">WORKSPACE</div>
    {nav.map(n=><button key={n.name} className={"nav-item "+(view===n.name?"active":"")} onClick={()=>{setView(n.name);setSelected(null)}}><n.icon size={18}/><span>{n.name}</span>{n.name==="Inbox"&&unread>0&&<em>{unread}</em>}</button>)}
    <div className="sidebar-bottom"><div className="privacy-chip"><ShieldCheck size={16}/> Private account</div><button className="nav-item" onClick={async()=>{await api.logout();setUser(false)}}><LogOut size={17}/> Sign out</button><small>{user.email}</small></div>
   </aside>
-  <main className="main-area"><header className="topbar"><div><span className="eyebrow">YOUR WORKSPACE</span><h1>{view}</h1></div><div className="top-actions"><span className="connection-state"><CircleDashed size={14}/> AI unavailable on Go</span><button className="icon-button" title="Refresh" onClick={refresh}><RefreshCw size={17}/></button><button className="button primary" onClick={sync}><RefreshCw size={15}/> Sync Now</button></div></header>
+  <main className="main-area"><header className="topbar"><div><span className="eyebrow">YOUR WORKSPACE</span><h1>{view}</h1></div><div className="top-actions"><span className="connection-state"><CircleDashed size={14}/> AI runtime not connected</span><button className="icon-button" title="Refresh" onClick={refresh}><RefreshCw size={17}/></button><button className="button primary" onClick={sync}><RefreshCw size={15}/> Sync Now</button></div></header>
    {notice&&<div className="notice"><AlertCircle size={16}/><span>{notice}</span><button onClick={()=>setNotice("")} aria-label="Dismiss"><X size={15}/></button></div>}
    {view==="Inbox"&&<section className="inbox-layout"><div className="list-pane"><div className="pane-heading"><div><b>All mail</b><small>{messages.length} messages · {unread} unread</small></div><button className="icon-button" onClick={()=>setShowAccount(true)}><Plus size={18}/></button></div><form className="searchbox" onSubmit={e=>{e.preventDefault();refresh()}}><Search size={16}/><input placeholder="Search sender, subject or content" value={search} onChange={e=>setSearch(e.target.value)}/><button><ChevronRight size={16}/></button></form>
     {busy?<Empty title="Loading inbox" detail="Fetching saved email records…"/>:messages.length===0?<Empty title="Your inbox is ready" detail="Connect an iCloud account to begin." action={<button className="button secondary" onClick={()=>setShowAccount(true)}>Connect account</button>}/>:messages.map(m=><button key={m.id} className={"message-row "+(selected?.id===m.id?"selected ":"")+(m.is_read?"":"unread")} onClick={()=>openMessage(m)}><div className="row-top"><b>{m.sender}</b><small>{m.received_at?new Date(m.received_at).toLocaleDateString():""}</small></div><strong>{m.subject||"(No subject)"}</strong><p>{m.summary||m.snippet||"No preview available"}</p><div className="row-meta"><span className={"priority "+m.priority}>{m.priority}</span>{m.has_attachments&&<Paperclip size={13}/>}</div></button>)}
@@ -74,10 +87,50 @@ export default function App(){
      <div className="inline-actions"><button className="button secondary" onClick={saveDraft}>Save draft</button><button className="button secondary" onClick={sendDraft}>Approve &amp; Send</button></div></div>}
     <div className="detail-actions"><button className="button secondary" onClick={createDraft}>Create Reply</button><button className="button secondary" onClick={async()=>{if(!selected||!window.confirm("Move this email to the source account’s Trash?"))return;try{await api.trash(selected.id);setSelected(null);setNotice("Email moved to the provider’s Trash.");await refresh()}catch(err){setNotice(String(err))}}}><Trash2 size={15}/> Move to Trash</button><button className="button secondary" onClick={async()=>{if(!selected||!window.confirm("Hide future messages from this sender in this app? This does not block the sender at Apple or Google."))return;try{const r=await api.block(selected.id);setNotice("Blocked "+r.blocked+" in this app only.");await refresh()}catch(err){setNotice(String(err))}}}><Flag size={15}/> Block in app</button><button className="button secondary" onClick={()=>setNotice("Original attachment viewing/download is not implemented.")}><Paperclip size={15}/> Attachments</button><button className="button secondary" onClick={()=>setNotice("Apple Notes and Reminders integration is not implemented.")}><CalendarClock size={15}/> Reminder / Note</button></div>
    </>:<Empty title="Select an email" detail="Summaries, original content and available actions appear here."/>}</div></section>}
-   {view==="Follow-ups"&&<section className="content-card"><div className="section-head"><div><h2>Follow-ups</h2><p>Commitments and actions linked to email.</p></div><span className="count-pill">{followups.length} active</span></div>{followups.length===0?<Empty icon={Check} title="No active follow-ups" detail="AI follow-up extraction is not connected yet."/>:followups.map(f=><div className="item-row" key={f.id}><div><b>{f.title}</b><p>{f.description}</p><small>{f.owner||"Owner not specified"} · {f.due_at?new Date(f.due_at).toLocaleString():"No due date"} · {f.status.replaceAll("_"," ")}</small></div><div className="inline-actions"><button className="button secondary compact" onClick={async()=>{await api.completeFollowup(f.id);await refresh()}}>Complete</button><button className="icon-button" title="Remove from Follow-ups" onClick={async()=>{await api.removeFollowup(f.id);await refresh()}}><X size={16}/></button></div></div>)}</section>}
+   {view==="Follow-ups"&&<section className="content-card followups-card">
+    <div className="section-head"><div><h2>Follow-ups</h2><p>Track commitments and responses linked to your emails.</p></div><span className="count-pill">{followups.length} active</span></div>
+    <div className="followup-filters">
+     <button className={followupFilter==="all"?"chosen":""} onClick={()=>setFollowupFilter("all")}>All <span>{followups.length}</span></button>
+     <button className={followupFilter==="action_required"?"chosen":""} onClick={()=>setFollowupFilter("action_required")}>Action Required <span>{followups.filter((f:any)=>f.status==="action_required").length}</span></button>
+     <button className={followupFilter==="awaiting_response"?"chosen":""} onClick={()=>setFollowupFilter("awaiting_response")}>Awaiting Response <span>{followups.filter((f:any)=>f.status==="awaiting_response").length}</span></button>
+    </div>
+    {visibleFollowups.length===0?<Empty icon={Check} title="No follow-ups in this view" detail="Follow-up records will appear here when they are added. No email is changed when a follow-up is completed or removed."/>:
+     <div className="followup-list">{visibleFollowups.map((f:any)=>{
+      const overdue=Boolean(f.due_at&&new Date(f.due_at).getTime()<Date.now());
+      return <div className="followup-row" key={f.id}>
+       <div className="followup-main">
+        <div className="followup-title-row"><b>{f.title}</b><span className={"followup-state "+(overdue?"overdue":f.status)}>{overdue?"Overdue":f.status.replaceAll("_"," ")}</span></div>
+        {f.description&&<p>{f.description}</p>}
+        <small>{f.owner||"Owner not specified"} · {f.due_at?"Due "+new Date(f.due_at).toLocaleString():"No due date"}{f.message_id?" · Linked to an email":""}</small>
+       </div>
+       <div className="followup-actions">
+        {f.message_id&&<button className="button secondary compact" onClick={()=>openFollowupSource(f.message_id)}>Open Email Trail</button>}
+        <button className="button secondary compact" onClick={async()=>{try{await api.completeFollowup(f.id);setNotice("Follow-up marked complete.");await refresh()}catch(err){setNotice(String(err))}}}>Mark Complete</button>
+        <button className="button secondary compact" onClick={()=>setEditingFollowup({...f,due_local:toLocalDateTime(f.due_at)})}>Edit</button>
+        <button className="button secondary compact" onClick={()=>{setSnoozingFollowup(f);setSnoozeUntil(toLocalDateTime(f.due_at))}}>Snooze</button>
+        <button className="followup-remove" onClick={async()=>{if(!window.confirm("Remove this tracking item only? The email and conversation will remain unchanged."))return;try{await api.removeFollowup(f.id);setNotice("Follow-up removed. The email and conversation were retained.");await refresh()}catch(err){setNotice(String(err))}}}>Remove from Follow-ups</button>
+       </div>
+      </div>
+     })}</div>}
+    {editingFollowup&&<div className="modal-backdrop"><form className="modal" onSubmit={saveFollowupEdit}>
+     <div className="section-head"><h2>Edit follow-up</h2><button type="button" className="icon-button" onClick={()=>setEditingFollowup(null)}><X size={17}/></button></div>
+     <label>Task</label><input value={editingFollowup.title||""} onChange={e=>setEditingFollowup({...editingFollowup,title:e.target.value})} required maxLength={500}/>
+     <label>Description</label><textarea rows={4} value={editingFollowup.description||""} onChange={e=>setEditingFollowup({...editingFollowup,description:e.target.value})}/>
+     <label>Responsible party</label><input value={editingFollowup.owner||""} onChange={e=>setEditingFollowup({...editingFollowup,owner:e.target.value})} maxLength={200}/>
+     <label>Due / expected date</label><input type="datetime-local" value={editingFollowup.due_local||""} onChange={e=>setEditingFollowup({...editingFollowup,due_local:e.target.value})}/>
+     <label>Tracking status</label><select value={editingFollowup.status||"action_required"} onChange={e=>setEditingFollowup({...editingFollowup,status:e.target.value})}><option value="action_required">Action Required</option><option value="awaiting_response">Awaiting Response</option></select>
+     <div className="inline-actions"><button type="button" className="button secondary" onClick={()=>setEditingFollowup(null)}>Cancel</button><button className="button primary">Save changes</button></div>
+    </form></div>}
+    {snoozingFollowup&&<div className="modal-backdrop"><form className="modal" onSubmit={saveFollowupSnooze}>
+     <div className="section-head"><h2>Snooze follow-up</h2><button type="button" className="icon-button" onClick={()=>setSnoozingFollowup(null)}><X size={17}/></button></div>
+     <p className="modal-description">Hide this follow-up from active views until the selected review time. Its history and linked email will remain unchanged.</p>
+     <label>Remind me to review on</label><input type="datetime-local" value={snoozeUntil} onChange={e=>setSnoozeUntil(e.target.value)} required/>
+     <div className="inline-actions"><button type="button" className="button secondary" onClick={()=>setSnoozingFollowup(null)}>Cancel</button><button className="button primary">Save snooze</button></div>
+    </form></div>}
+   </section>}
    {view==="AI Assistant"&&<section className="assistant-layout"><div className="chat-panel"><div className="section-head"><div><h2>AI Assistant</h2><p>Persistent Email Assistant conversations · separate from ChatGPT history</p></div><button className="button secondary" onClick={createConversation}><Plus size={15}/> New chat</button></div>
     <div className="conversation-strip">{conversations.map(c=><button key={c.id} className={"conversation-pill "+(conversation?.id===c.id?"chosen":"")} onClick={()=>selectConversation(c.id)}>{c.title}</button>)}</div>
-    <div className="chat-body">{conversation?.messages?.length?conversation.messages.map((m:any,i:number)=><div className={"bubble "+m.role} key={i}><small>{m.role==="user"?"You":m.role==="assistant"?"Assistant":"System"}</small><p>{m.content}</p></div>):<Empty icon={MessageSquare} title="What would you like to work on?" detail="Conversation storage is available. Open-source plan usage currently requires an eligible Plus or Pro account; this Go account cannot power this app. No paid API is enabled."/>}</div>
+    <div className="chat-body">{conversation?.messages?.length?conversation.messages.map((m:any,i:number)=><div className={"bubble "+m.role} key={i}><small>{m.role==="user"?"You":m.role==="assistant"?"Assistant":"System"}</small><p>{m.content}</p></div>):<Empty icon={MessageSquare} title="What would you like to work on?" detail="Your app-managed conversation history is saved. AI responses are paused until an OpenAI-compliant Sign in with ChatGPT runtime is configured. Go is eligible for supported integrations, but app access and plan-sharing consent must be verified. No paid API or credit fallback is enabled."/>}</div>
     <form className="chat-input" onSubmit={sendChat}><input value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Ask your assistant…"/><button className="button primary" disabled={!conversation||!chatInput.trim()}><Send size={16}/></button></form>
    </div><aside className="task-panel"><div className="section-head"><h2>AI tasks</h2><span className="count-pill">{active.length} active · max 3</span></div>
     <form className="task-create" onSubmit={addTask}><input value={taskTitle} onChange={e=>setTaskTitle(e.target.value)} placeholder="Task title" required maxLength={500}/><textarea value={taskText} onChange={e=>setTaskText(e.target.value)} placeholder="Describe what you want done…"/>
