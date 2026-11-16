@@ -67,6 +67,49 @@ class ReplyDraft(Base):
     provider_sent_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+class AppleDevice(Base):
+    __tablename__ = "apple_devices"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AppleDeviceEnrollment(Base):
+    __tablename__ = "apple_device_enrollments"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_name: Mapped[str] = mapped_column(String(200))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class AppleDeviceCommand(Base):
+    __tablename__ = "apple_device_commands"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    device_id: Mapped[int | None] = mapped_column(ForeignKey("apple_devices.id", ondelete="SET NULL"), nullable=True, index=True)
+    command_type: Mapped[str] = mapped_column(String(20))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    idempotency_key: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(30), default="pending_on_device", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    lease_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (Index("ix_apple_command_idempotency", "user_id", "idempotency_key", unique=True),)
+
+
 class ForwardDraft(Base):
     __tablename__ = "forward_drafts"
     id: Mapped[int] = mapped_column(primary_key=True)
