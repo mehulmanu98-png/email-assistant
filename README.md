@@ -16,7 +16,7 @@ Private single-user dashboard for iCloud Mail and Gmail. It includes a React int
 
 Repository source and CI: https://github.com/mehulmanu98-png/email-assistant
 
-The Neon project and the GitHub `NEON_DATABASE_URL` repository secret have been set up by the owner. The Neon connection has **not yet been verified by the running application**. Google Cloud project creation, billing setup and deployment are still pending.
+The Neon project `Email Assistant` exists on the free-tier organisation with a ready `production` branch and `neondb` database. A direct database inspection on 16 November 2026 found no application tables yet; the FastAPI startup routine creates them on the first successful application startup. The repository's deployment record does not show a completed Cloud Run deployment, and the GCP project/billing state has not been independently verified in this session. Check the Google Cloud console before assuming those setup steps are complete. The GitHub `NEON_DATABASE_URL` secret was previously recorded as saved; it is not used by the primary Cloud Run deployment path.
 
 Cloud Run requires a Google Cloud billing account. Cloud Run has a monthly free usage allowance based on resource usage, and Cloud Scheduler includes three jobs per billing account free each month. This deployment uses one scheduler job. These allowances are not a guarantee of zero cost; review current pricing, create a billing budget alert and monitor actual usage. <https://cloud.google.com/run/pricing> <https://cloud.google.com/scheduler/pricing>
 
@@ -55,7 +55,15 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 
 ## AI and other unfinished features
 
-AI summaries, AI-generated replies, automatic follow-up extraction, delegated AI task execution, attachment downloading/previewing and the Apple Notes/Reminders bridge are not active. No OpenAI API billing, external AI API, paid model fallback or fabricated AI response is enabled. App-managed conversations/tasks are stored but do not produce AI answers under the current configuration.
+AI summaries, AI-generated replies, automatic follow-up extraction, delegated AI task execution, attachment downloading/previewing and the Apple Notes/Reminders bridge are not active. App-managed conversations and tasks are stored, but they do not produce AI answers or execute delegated work yet.
+
+The user's ChatGPT Go plan is not categorically excluded: OpenAI's current Help Center says Go, Plus and Pro users can use included plan usage in participating apps that support the feature, subject to the app's own eligibility and approval. This Email Assistant has **not** received approval for a commercial Sign in with ChatGPT integration. The official open-source Sign in with ChatGPT DevKit carries a **Noncommercial License** that excludes development, testing, distribution or operation by/for a business in connection with its operations or commercial advantage. Because this Email Assistant is intended to process business correspondence, that DevKit is not used in this project unless OpenAI grants the required commercial rights in writing. The next AI step is to seek OpenAI's commercial-integration approval. Until then, AI work stays blocked/Waiting for User; do not store SIWC credentials in Neon or Google Secret Manager, do not use an unauthorised token-transfer workaround, and do not configure OpenAI API billing, ChatGPT credits or paid fallback.
+
+References:
+- [Using your ChatGPT plan in other apps and sites](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites)
+- [Sign in with ChatGPT commercial integration interest form](https://openai.com/form/sign-in-with-chatgpt/)
+- [Official DevKit README and licence notice](https://github.com/openai/sign-in-with-chatgpt-devkit)
+- [Official DevKit Noncommercial License](https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/LICENSE)
 
 ## Security and operating notes
 
