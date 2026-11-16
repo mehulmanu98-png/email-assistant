@@ -48,6 +48,7 @@ export const api = {
   retryAppleCommand: (id:number) => request<any>("/apple/commands/"+id+"/retry",{method:"POST"}),
   cancelAppleCommand: (id:number) => request<any>("/apple/commands/"+id,{method:"DELETE"}),
   followups: () => request<any[]>("/followups"),
+  createFollowup: (data:any) => request<any>("/followups",{method:"POST",body:JSON.stringify(data)}),
   updateFollowup: (id:number,data:any) => request<any>("/followups/"+id,{method:"PATCH",body:JSON.stringify(data)}),
   completeFollowup: (id:number) => request<any>("/followups/"+id+"/complete",{method:"PATCH"}),
   snoozeFollowup: (id:number,until:string) => request<any>("/followups/"+id+"/snooze?until="+encodeURIComponent(until),{method:"PATCH"}),
