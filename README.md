@@ -59,24 +59,49 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 
 ## AI and other unfinished features
 
-AI summaries, AI-generated replies, automatic follow-up extraction, delegated AI task execution and attachment-content analysis are not active.
+AI summaries, AI-generated replies, automatic follow-up extraction, delegated AI task execution and attachment-content analysis are not active yet. The app currently persists conversations and tasks, but does not generate AI answers or execute delegated AI work.
 
 The following non-AI features are implemented in the current source:
 - Original attachment listing, secure viewing and download from the source mailbox.
-- Separate forward drafts with optional original attachments and explicit send approval.
+- Separate forward and new outbound drafts with explicit sender selection, final send approval and uncertain-send safeguards.
+- On-demand full-thread retrieval from Gmail/iCloud, shown chronologically with partial-history warnings and without changing mailbox read flags.
 - App-managed email-thread linking, one-time history backfill and append-on-sync deduplication.
 - Secure Apple Notes/Reminders command queue, one-time device enrolment, device polling and command-result receipts. A real Apple Shortcut still needs to be installed/enrolled and acceptance-tested on a device before native Notes or Reminders creation can be considered live.
-- Each inbox email card has its own actions for View Original, Prepare Reply, Mark as Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question. The two AI actions explicitly report that commercial ChatGPT integration approval is pending; they do not produce canned or fabricated output.
+- Each inbox email card has its own actions for View Original, Prepare Reply, Mark as Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question. The two AI actions explicitly report that AI is not connected yet; they do not produce canned or fabricated output.
 
 App-managed conversations and tasks are persisted, but they do not generate AI answers or execute delegated AI work yet.
 
-The user's ChatGPT Go plan is not categorically excluded: OpenAI's current Help Center says Go, Plus, Pro and Business plans may use included plan usage in participating commercial apps that support the feature, subject to the app's own participation/eligibility and the user's separate consent. This Email Assistant is not currently an approved participating app. OpenAI's Sign in with ChatGPT Terms (effective 4 November 2026) add a material architecture restriction: persistent SIWC authentication tokens must be stored locally under the user's control, not in a remote or managed environment; plan usage requests must originate from the user's local runtime or a remote runtime that only that user controls, and background use requires express consent. This makes unattended Cloud Run AI processing unresolved: do not assume that SIWC tokens can be persisted in Neon or Google Secret Manager, and obtain written OpenAI clarification of the approved runtime/token-storage arrangement before implementing it. The official open-source Sign in with ChatGPT DevKit also carries a **Noncommercial License** that excludes development, testing, distribution or operation by/for a business in connection with its operations or commercial advantage. Because this Email Assistant is intended to process business correspondence, that DevKit is not used unless OpenAI grants the required commercial rights in writing. Until a compliant architecture and approval exist, AI work stays blocked/Waiting for User; do not use an unauthorised token-transfer workaround, and do not configure OpenAI API billing, ChatGPT credits or paid fallback.
+### ChatGPT plan usage path (implementation pending)
+
+OpenAI publishes an open-source Sign in with ChatGPT flow that lets an open-source app request the direct ChatGPT plan-use scope for eligible Responses API usage. Its self-hosted-VM procedure supports completing sign-in on the user's computer, securely transferring the protected credential file to a remote VM controlled by that same user, then allowing that VM to refresh tokens. This is the route being evaluated for AI work while the MacBook is closed. It is not implemented or connected yet.
+
+The planned separation is:
+- Cloud Run / Cloud Scheduler / Neon continue to run the dashboard, email synchronisation, and durable AI task records.
+- A dedicated self-hosted VM under the user's own Google Cloud project runs the AI worker and stores its SIWC credential file on that VM's own local filesystem.
+- OAuth is completed locally on the user's Mac using the documented loopback PKCE flow. Only the protected credential file is transferred to the VM over SSH/IAP; it is never sent to Neon, Cloud Secret Manager, Cloud Run environment variables, GitHub, the browser, URLs or logs.
+- The VM uses the public Responses API with the account-authorised access token, store:false and stream:true; model choices are retrieved from the signed-in account's model catalogue. A response is successful only after response.completed.
+- The app checks the granted scope for chatgpt.tokens.use.direct. A normal identity sign-in without that scope does not authorise inference.
+- Background AI processing remains disabled until the user expressly authorises it in the app and in the ChatGPT sign-in consent flow. The user can revoke the app connection or disable background processing.
+- If ChatGPT plan usage is unavailable or exhausted, AI work pauses. No API key, purchased credits, paid fallback or automatic credit purchase is configured.
+
+The official OpenAI open-source DevKit is under a Noncommercial License and is not bundled or copied into this business-use application. The project will implement the documented public OAuth/Responses protocol independently. Do not assume that open-source availability guarantees plan eligibility: the actual ChatGPT account must grant the plan-use scope, and the exact user-controlled VM deployment must pass a live acceptance test.
+
+Important limitation: OpenAI says transferred self-hosted-VM sessions do not yet have host-specific usage attribution or revocation. Token invalidation must therefore be detected from refresh/Responses failures. See the dedicated SIWC self-hosted VM design (docs/siwc-self-hosted-vm.md).
+
+### Cost and deployment constraint
+
+Google's Compute Engine always-free e2-micro allowance is restricted to specified US regions, with 30 GB-months of standard disk and 1 GB/month of outbound data transfer from North America. It does not establish that the complete VM networking, egress and support setup will cost ₹0. A VM without a public external IP can be administered using IAP, but outbound access still needs a supported network route. We will verify region, connectivity and all billable components before creating anything. No new paid resource will be provisioned without the user's explicit approval.
 
 References:
-- [Using your ChatGPT plan in other apps and sites](https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites)
-- [Sign in with ChatGPT commercial integration interest form](https://openai.com/form/sign-in-with-chatgpt/)
-- [Official DevKit README and licence notice](https://github.com/openai/sign-in-with-chatgpt-devkit)
-- [Official DevKit Noncommercial License](https://github.com/openai/sign-in-with-chatgpt-devkit/blob/main/LICENSE)
+- OpenAI: Sign in with ChatGPT — self-hosted VMs: https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms
+- OpenAI: Sign in with ChatGPT — registration and sign-in: https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- OpenAI: Sign in with ChatGPT — models and inference: https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
+- OpenAI: errors and recovery: https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery
+- OpenAI: token reference: https://developers.openai.com/siwc/token-sharing-open-source/token-reference
+- OpenAI: Sign in with ChatGPT Terms: https://openai.com/policies/sign-in-with-chatgpt-terms/
+- OpenAI Help: using your ChatGPT plan in other apps and sites: https://help.openai.com/en/articles/20001542-using-your-chatgpt-plan-in-other-apps-and-sites
+- Google Cloud Free Tier: https://docs.cloud.google.com/free/docs/free-cloud-features
+- Google Cloud IAP TCP forwarding: https://docs.cloud.google.com/iap/docs/using-tcp-forwarding
 
 ## Security and operating notes
 
