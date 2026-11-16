@@ -180,13 +180,16 @@ def _gmail_attachment_parts(payload: dict) -> list[dict]:
     def walk(part: dict):
         filename = str(part.get("filename") or "")
         body = part.get("body") or {}
-        if filename:
+        headers = {str(h.get("name", "")).lower(): str(h.get("value", "")) for h in (part.get("headers") or [])}
+        content_id = headers.get("content-id", "").strip("<>")
+        if filename or body.get("attachmentId") or content_id:
             found.append({
-                "filename": filename[:255],
+                "filename": (filename or content_id or "inline-attachment")[:255],
                 "mime_type": str(part.get("mimeType") or "application/octet-stream"),
                 "size": int(body.get("size") or 0),
                 "attachment_id": body.get("attachmentId"),
                 "data": body.get("data"),
+                "is_inline": headers.get("content-disposition", "").lower().startswith("inline") or bool(content_id),
             })
         for child in part.get("parts") or []:
             walk(child)
@@ -208,8 +211,8 @@ def list_gmail_attachments(db: Session, account: EmailAccount, provider_id: str)
             "filename": item["filename"],
             "mime_type": mime_type,
             "size": size,
-            "is_inline": False,
-            "can_preview": mime_type == "application/pdf" or mime_type.startswith("image/"),
+            "is_inline": item["is_inline"],
+            "can_preview": mime_type == "application/pdf" or mime_type in {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp"},
             "available": size <= MAX_ATTACHMENT_BYTES,
         })
     return result
@@ -247,7 +250,7 @@ def get_gmail_attachment(db: Session, account: EmailAccount, provider_id: str, i
         "filename": item["filename"],
         "mime_type": item["mime_type"],
         "size": len(data),
-        "is_inline": False,
+        "is_inline": item["is_inline"],
         "data": data,
     }
 
