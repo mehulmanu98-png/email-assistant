@@ -741,3 +741,52 @@ def test_read_state_can_mark_email_read_and_unread_only_after_provider_confirmat
             assert saved is not None and saved.is_read is True
         finally:
             db.close()
+
+
+def test_full_thread_endpoint_does_not_change_provider_read_state(monkeypatch):
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"thread-view-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            source = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="gmail-thread-view-source",
+                thread_key="gmail-thread-view",
+                sender="supplier@example.com", recipients=account.email,
+                subject="Complete trail test", body_text="Current source message",
+                is_read=False,
+            )
+            db.add(source)
+            db.commit()
+            db.refresh(source)
+            message_id = source.id
+        finally:
+            db.close()
+
+        def fake_load(db_arg, account_arg, source_arg):
+            assert account_arg.provider == "gmail"
+            assert source_arg.id == message_id
+            return [source_arg], True, [], 0
+
+        monkeypatch.setattr(main_module, "load_provider_thread", fake_load)
+        response = client.get(f"/api/messages/{message_id}/thread")
+        assert response.status_code == 200
+        assert response.json()["provider_scan_complete"] is True
+        assert response.json()["read_state_changed"] is False
+        assert response.json()["messages"][0]["body_text"] == "Current source message"
+
+        db = SessionLocal()
+        try:
+            stored = db.get(EmailMessage, message_id)
+            assert stored is not None and stored.is_read is False
+        finally:
+            db.close()
