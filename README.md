@@ -78,7 +78,7 @@ OpenAI publishes an open-source Sign in with ChatGPT flow that lets an open-sour
 The planned separation is:
 - Cloud Run / Cloud Scheduler / Neon continue to run the dashboard, email synchronisation, and durable AI task records.
 - A dedicated self-hosted VM under the user's own Google Cloud project runs the AI worker and stores its SIWC credential file on that VM's own local filesystem.
-- OAuth is completed locally on the user's Mac using the documented loopback PKCE flow. Only the protected credential file is transferred to the VM over SSH/IAP; it is never sent to Neon, Cloud Secret Manager, Cloud Run environment variables, GitHub, the browser, URLs or logs.
+- The AI VM first creates its stable host ID. The user copies that non-secret ID to the Mac; the Mac helper uses the VM ID in the documented loopback PKCE OAuth flow. Only the resulting protected credential file is transferred back to the VM over SSH/IAP; the VM verifies the ID matches before import. The file is never sent to Neon, Cloud Secret Manager, Cloud Run environment variables, GitHub, the browser, URLs or logs.
 - The VM uses the public Responses API with the account-authorised access token, store:false and stream:true; model choices are retrieved from the signed-in account's model catalogue. A response is successful only after response.completed.
 - The app checks the granted scope for chatgpt.tokens.use.direct. A normal identity sign-in without that scope does not authorise inference.
 - Background AI processing remains disabled until the user expressly authorises it in the app and in the ChatGPT sign-in consent flow. The user can revoke the app connection or disable background processing.
