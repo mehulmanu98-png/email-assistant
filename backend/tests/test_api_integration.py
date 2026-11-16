@@ -35,11 +35,11 @@ def test_dashboard_health_login_and_editable_sync_schedule():
         assert settings_response.json()["timezone"] == "Asia/Kolkata"
 
         saved = client.patch("/api/settings", json={
-            "sync_times": ["08:00", "11:00", "14:00", "17:00"],
+            "sync_times": ["08:00", "12:00", "17:00"],
             "timezone": "Asia/Kolkata"
         })
         assert saved.status_code == 200
-        assert saved.json()["sync_times"] == ["08:00", "11:00", "14:00", "17:00"]
+        assert saved.json()["sync_times"] == ["08:00", "12:00", "17:00"]
         assert saved.json()["ai_processing_enabled"] is False
         assert saved.json()["notifications_enabled"] is False
 
