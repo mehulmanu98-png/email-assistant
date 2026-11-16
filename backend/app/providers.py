@@ -299,6 +299,62 @@ def get_icloud_attachment(account: EmailAccount, message_id: str, index: int) ->
     return item
 
 
+def send_icloud_forward(
+    account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
+    subject: str, cover_note: str, source_message: StoredMessage,
+    include_attachments: bool = True,
+) -> str:
+    if not account.encrypted_secret:
+        raise RuntimeError("The iCloud app-specific password is unavailable. Reconnect this account.")
+    password = get_fernet().decrypt(account.encrypted_secret.encode()).decode()
+    forwarded = (
+        "---------- Forwarded message ---------\n"
+        f"From: {source_message.sender}\n"
+        f"Date: {source_message.received_at or 'Unknown'}\n"
+        f"Subject: {source_message.subject}\n"
+        f"To: {source_message.recipients}\n\n"
+        f"{source_message.body_text or ''}"
+    )
+    body = (cover_note.strip() + "\n\n" if cover_note.strip() else "") + forwarded
+    message = MIMEEmailMessage()
+    message["From"] = account.email
+    message["To"] = ", ".join(to)
+    if cc:
+        message["Cc"] = ", ".join(cc)
+    message["Subject"] = subject
+    message["Message-ID"] = make_msgid()
+    message.set_content(body)
+
+    attachments = _icloud_message_parts(account, source_message.provider_message_id) if include_attachments else []
+    total_size = 0
+    for item in attachments:
+        data = item["data"]
+        total_size += len(data)
+        if total_size > MAX_ATTACHMENT_BYTES:
+            raise ValueError("The combined original attachments exceed the 25 MB forwarding limit.")
+        mime_type = item["mime_type"].split("/", 1)
+        if len(mime_type) != 2:
+            mime_type = ["application", "octet-stream"]
+        message.add_attachment(
+            data,
+            maintype=mime_type[0],
+            subtype=mime_type[1],
+            filename=item["filename"] or "attachment",
+        )
+    recipients = list(dict.fromkeys(to + cc + bcc))
+    if not recipients:
+        raise RuntimeError("No recipients were supplied.")
+    with smtplib.SMTP("smtp.mail.me.com", 587, timeout=30) as smtp:
+        smtp.ehlo()
+        smtp.starttls(context=ssl.create_default_context())
+        smtp.ehlo()
+        smtp.login(account.email, password)
+        refused = smtp.send_message(message, from_addr=account.email, to_addrs=recipients)
+        if refused:
+            raise RuntimeError("The iCloud SMTP server refused one or more recipients.")
+    return message["Message-ID"]
+
+
 def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
                 subject: str, body: str, source_message: StoredMessage | None = None) -> str:
     if not account.encrypted_secret:
