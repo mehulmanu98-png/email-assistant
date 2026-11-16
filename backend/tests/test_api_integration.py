@@ -1010,12 +1010,13 @@ def test_login_throttle_blocks_after_five_failures_and_resets_after_window():
     identifier_hash = _login_identifier_hash(email)
 
     with TestClient(app) as client:
-        for attempt in range(5):
+        for attempt in range(4):
             failed = client.post("/api/auth/login", json={
                 "email": email, "password": "not-the-correct-password",
             })
             assert failed.status_code == 401
 
+        # The fifth failed attempt activates the lockout.
         blocked = client.post("/api/auth/login", json={
             "email": email, "password": "not-the-correct-password",
         })
