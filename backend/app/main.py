@@ -583,11 +583,19 @@ def followups(user: User = Depends(current_user), db: Session = Depends(get_db))
         FollowUp.user_id == user.id,
         FollowUp.status.in_(["action_required", "awaiting_response"])
     ).order_by(FollowUp.due_at)).all()
+    now = utcnow()
+    def is_visible(item: FollowUp) -> bool:
+        if not item.snoozed_until:
+            return True
+        snoozed_until = item.snoozed_until
+        if snoozed_until.tzinfo is None:
+            snoozed_until = snoozed_until.replace(tzinfo=timezone.utc)
+        return snoozed_until <= now
     return [{
         "id": x.id, "title": x.title, "description": x.description,
         "owner": x.owner, "due_at": x.due_at, "status": x.status,
         "message_id": x.message_id, "snoozed_until": x.snoozed_until
-    } for x in rows if not x.snoozed_until or x.snoozed_until <= utcnow()]
+    } for x in rows if is_visible(x)]
 
 @app.post("/api/followups")
 def add_followup(data: FollowUpIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
