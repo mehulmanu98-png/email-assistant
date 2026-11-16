@@ -52,6 +52,10 @@ class SendApprovalIn(BaseModel):
     confirm_send: bool
     expected_updated_at: datetime
 
+
+class ReadStateIn(BaseModel):
+    is_read: bool
+
 class ForwardDraftIn(DraftIn):
     include_attachments: bool = True
 
