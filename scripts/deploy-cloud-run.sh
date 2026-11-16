@@ -39,8 +39,8 @@ else
   SERVICE_EXISTS=false
   EXISTING_EMAIL=""
 fi
-if [[ "$SERVICE_EXISTS" == "true" ]] && ! secret_exists "email-assistant-field-key"; then
-  echo "The existing Cloud Run service has no saved mailbox encryption key in Secret Manager. Stop here; do not generate a new key or existing mailbox credentials could become unreadable."
+if [[ "$SERVICE_EXISTS" == "true" ]] && { ! secret_exists "email-assistant-field-key" || ! secret_exists "email-assistant-jwt-secret" || ! secret_exists "email-assistant-bootstrap-password" || ! secret_exists "email-assistant-neon-url"; }; then
+  echo "The existing Cloud Run service is missing one or more persistent database/authentication secrets in Secret Manager. Stop and restore the original secrets before redeploying; generating replacements could make mailbox credentials unreadable or lock you out."
   exit 1
 fi
 if [[ "$SERVICE_EXISTS" == "true" && -z "$EXISTING_EMAIL" ]]; then
