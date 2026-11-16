@@ -133,14 +133,19 @@ def _append_message_once(
     ).with_for_update())
     if not conversation:
         return False
-    already_added = db.scalar(select(EmailConversationItem.id).where(
-        EmailConversationItem.link_id == link.id,
+    already_added = db.scalar(select(EmailConversationItem).where(
+        EmailConversationItem.conversation_id == link.conversation_id,
         EmailConversationItem.message_id == message.id,
     ))
     if already_added:
+        # A thread may be unlinked and later linked again to the same
+        # conversation. Reassociate the retained ledger row without repeating
+        # the email context in conversation history.
+        already_added.link_id = link.id
         return False
     db.add(EmailConversationItem(
         link_id=link.id,
+        conversation_id=link.conversation_id,
         message_id=message.id,
         provider_message_id=message.provider_message_id,
     ))
