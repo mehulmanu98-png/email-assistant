@@ -15,6 +15,7 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
 | User-editable sync times and missed-slot catch-up | Built | Uses timezone-aware due-slot state and unique schedule-run keys. |
 | Bounded worker retries and stale-job recovery | Built | Retries at 5/10-minute intervals; requeues interrupted jobs. |
+| Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
 | Sync job visibility in dashboard | Built | Recent job activity shown under Accounts & Settings. |
 | Cloud Run dashboard/API deployment | Prepared | No Google Cloud project/deployment yet. |
 | Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. |

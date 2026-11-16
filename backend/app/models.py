@@ -150,3 +150,10 @@ class UserSettings(Base):
     sync_times: Mapped[list] = mapped_column(JSON, default=lambda: ["08:00", "11:00", "14:00", "17:00"])
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Kolkata")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+class WorkerLease(Base):
+    __tablename__ = "worker_leases"
+    lease_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_token: Mapped[str] = mapped_column(String(128))
+    lease_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

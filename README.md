@@ -7,7 +7,7 @@ Private single-user dashboard for iCloud Mail and Gmail. It includes a React int
 - **Neon PostgreSQL** stores accounts, encrypted provider credentials, messages, drafts, settings and sync jobs.
 - **Google Cloud Run** hosts the dashboard and API from one container. The dashboard can cold-start after idle time; scheduled mailbox jobs are independent of the dashboard.
 - **Google Cloud Run Jobs + Cloud Scheduler** execute the one-shot worker every 15 minutes. Cloud Scheduler uses the `Asia/Kolkata` timezone and calls the Cloud Run Jobs API using a dedicated service account. It does not require the MacBook or a GitHub scheduled workflow to be active.
-- The worker reads the saved mailbox schedule and queues any due slots not yet processed that day; it also handles manually queued Sync Now jobs.
+- The worker reads the saved mailbox schedule and queues any due slots not yet processed that day; it also handles manually queued Sync Now jobs. A Neon-backed 20-minute singleton lease prevents overlapping Cloud Run Job executions and expires automatically after a runner interruption.
 - Default mailbox sync times are **08:00, 11:00, 14:00 and 17:00 Asia/Kolkata**. The in-app settings can change these times.
 - No proactive notifications are configured.
 - GitHub Actions is used for CI. An optional manual mailbox diagnostic workflow exists, but it is not the primary scheduler.

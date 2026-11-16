@@ -20,3 +20,41 @@ def test_sync_retry_delay_is_exponential_and_bounded():
     assert retry_delay(1) == timedelta(minutes=5)
     assert retry_delay(2) == timedelta(minutes=10)
     assert retry_delay(3) == timedelta(minutes=20)
+
+def test_worker_lease_prevents_overlapping_runner_and_releases(monkeypatch):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from app.db import Base
+    import app.worker as worker
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    monkeypatch.setattr(worker, "SessionLocal", factory)
+
+    first = worker.acquire_worker_lease()
+    assert first
+    assert worker.acquire_worker_lease() is None
+    # An expired lease can be reclaimed after an interrupted execution.
+    from app.models import WorkerLease
+    from datetime import timedelta, timezone
+    db = factory()
+    lease = db.get(WorkerLease, worker.WORKER_LEASE_NAME)
+    lease.lease_until = datetime.now(timezone.utc) - timedelta(minutes=1)
+    db.commit()
+    db.close()
+
+    second = worker.acquire_worker_lease()
+    assert second and second != first
+    worker.release_worker_lease(first)
+    assert worker.acquire_worker_lease() is None
+    worker.release_worker_lease(second)
+    third = worker.acquire_worker_lease()
+    assert third
+    worker.release_worker_lease(third)
+    engine.dispose()

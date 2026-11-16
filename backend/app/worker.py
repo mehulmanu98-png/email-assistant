@@ -1,13 +1,15 @@
 import argparse
 import logging
 import re
+import secrets
 import time
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select, or_
+from sqlalchemy.exc import IntegrityError
 from .db import SessionLocal, init_db
-from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings
+from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease
 from .providers import sync_icloud
 from .gmail import sync_gmail
 from .config import settings
@@ -15,6 +17,58 @@ from .config import settings
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("email-assistant-worker")
 MAX_SYNC_ATTEMPTS = 3
+WORKER_LEASE_NAME = "mailbox-sync"
+WORKER_LEASE_MINUTES = 20
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def acquire_worker_lease() -> str | None:
+    """Claim the singleton mailbox worker lease in Neon before processing jobs."""
+    token = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        lease = db.scalar(
+            select(WorkerLease).where(WorkerLease.lease_name == WORKER_LEASE_NAME).with_for_update()
+        )
+        if lease and _as_utc(lease.lease_until) > now:
+            return None
+        if lease:
+            lease.owner_token = token
+            lease.lease_until = now + timedelta(minutes=WORKER_LEASE_MINUTES)
+        else:
+            db.add(WorkerLease(
+                lease_name=WORKER_LEASE_NAME,
+                owner_token=token,
+                lease_until=now + timedelta(minutes=WORKER_LEASE_MINUTES)
+            ))
+        try:
+            db.commit()
+        except IntegrityError:
+            # Two first-time invocations raced to create the unique singleton row.
+            db.rollback()
+            return None
+        return token
+    finally:
+        db.close()
+
+
+def release_worker_lease(token: str) -> None:
+    """Release only the lease owned by this execution; never clear another runner's lock."""
+    db = SessionLocal()
+    try:
+        lease = db.scalar(select(WorkerLease).where(
+            WorkerLease.lease_name == WORKER_LEASE_NAME,
+            WorkerLease.owner_token == token
+        ).with_for_update())
+        if lease:
+            db.delete(lease)
+            db.commit()
+    finally:
+        db.close()
 
 
 def retry_delay(attempt_count: int) -> timedelta:
@@ -149,19 +203,26 @@ def schedule_due_syncs() -> int:
 
 
 def run_scheduled_batch(max_jobs: int = 100) -> int:
-    """One-shot entry point for an ephemeral GitHub Actions runner."""
+    """One-shot entry point for a cloud scheduler invocation."""
     init_db()
-    recovered = recover_stale_jobs()
-    added = schedule_due_syncs()
-    if recovered:
-        log.warning("Recovered %s interrupted job(s).", recovered)
-    if added:
-        log.info("Queued %s scheduled sync job(s).", added)
-    processed = 0
-    while processed < max_jobs and run_once():
-        processed += 1
-    log.info("Background runner finished; processed %s job(s).", processed)
-    return processed
+    lease_token = acquire_worker_lease()
+    if not lease_token:
+        log.info("Another mailbox worker execution holds the Neon lease; skipping this overlapping trigger.")
+        return 0
+    try:
+        recovered = recover_stale_jobs()
+        added = schedule_due_syncs()
+        if recovered:
+            log.warning("Recovered %s interrupted job(s).", recovered)
+        if added:
+            log.info("Queued %s scheduled sync job(s).", added)
+        processed = 0
+        while processed < max_jobs and run_once():
+            processed += 1
+        log.info("Background runner finished; processed %s job(s).", processed)
+        return processed
+    finally:
+        release_worker_lease(lease_token)
 
 
 def main() -> None:
