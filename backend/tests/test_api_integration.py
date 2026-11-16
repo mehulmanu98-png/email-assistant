@@ -8,7 +8,7 @@ from app.config import settings
 from app.db import SessionLocal
 from app.main import app
 import app.main as main_module
-from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, AIConversation, AppleDevice, AppleDeviceCommand
+from app.models import User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, AIConversation, AppleDevice, AppleDeviceCommand
 from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
 
@@ -790,3 +790,131 @@ def test_full_thread_endpoint_does_not_change_provider_read_state(monkeypatch):
             assert stored is not None and stored.is_read is False
         finally:
             db.close()
+
+
+def test_new_outbound_draft_requires_explicit_from_account_and_final_approval(monkeypatch):
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            first = EmailAccount(
+                user_id=user.id, provider="icloud",
+                email=f"from-one-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            second = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"from-two-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add_all([first, second])
+            db.commit()
+            db.refresh(first)
+            db.refresh(second)
+            second_id = second.id
+            second_email = second.email
+        finally:
+            db.close()
+
+        missing_from = client.post("/api/outbound-drafts", json={
+            "to": ["recipient@example.com"],
+            "subject": "New proposal",
+            "body": "Please review the attached proposal.",
+        })
+        assert missing_from.status_code == 422
+
+        created = client.post("/api/outbound-drafts", json={
+            "account_id": second_id,
+            "to": ["recipient@example.com"],
+            "cc": ["copy@example.com"],
+            "bcc": [],
+            "subject": "New proposal",
+            "body": "Please review the proposal.",
+        })
+        assert created.status_code == 200
+        draft = created.json()
+        assert draft["from_account"] == second_email
+        assert draft["account_id"] == second_id
+        assert draft["status"] == "draft"
+
+        denied = client.post(f"/api/outbound-drafts/{draft['id']}/send", json={
+            "confirm_send": False,
+            "expected_updated_at": draft["updated_at"],
+        })
+        assert denied.status_code == 400
+
+        db = SessionLocal()
+        try:
+            saved = db.get(OutboundDraft, draft["id"])
+            assert saved is not None and saved.status == "draft"
+        finally:
+            db.close()
+
+        sent_calls = []
+
+        def fake_send(db_arg, account_arg, to, cc, bcc, subject, body, source):
+            sent_calls.append({
+                "account": account_arg.email, "to": to, "cc": cc,
+                "bcc": bcc, "subject": subject, "body": body, "source": source,
+            })
+            return "provider-accepted-new-message"
+
+        monkeypatch.setattr(main_module, "send_gmail", fake_send)
+        sent = client.post(f"/api/outbound-drafts/{draft['id']}/send", json={
+            "confirm_send": True,
+            "expected_updated_at": draft["updated_at"],
+        })
+        assert sent.status_code == 200
+        assert sent.json()["provider_accepted"] is True
+        assert sent.json()["delivery_confirmed"] is False
+        assert sent_calls == [{
+            "account": second_email,
+            "to": ["recipient@example.com"],
+            "cc": ["copy@example.com"],
+            "bcc": [],
+            "subject": "New proposal",
+            "body": "Please review the proposal.",
+            "source": None,
+        }]
+
+        retry = client.post(f"/api/outbound-drafts/{draft['id']}/send", json={
+            "confirm_send": True,
+            "expected_updated_at": draft["updated_at"],
+        })
+        assert retry.status_code == 409
+
+
+def test_new_outbound_draft_rejects_unowned_or_disconnected_from_account():
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="icloud",
+                email=f"disconnected-{uuid.uuid4().hex}@example.com",
+                connection_status="disconnected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            disconnected_id = account.id
+        finally:
+            db.close()
+
+        disconnected = client.post("/api/outbound-drafts", json={
+            "account_id": disconnected_id,
+            "to": ["recipient@example.com"],
+            "subject": "Test",
+            "body": "Test body",
+        })
+        assert disconnected.status_code == 409
+
+        unowned = client.post("/api/outbound-drafts", json={
+            "account_id": 99999999,
+            "to": ["recipient@example.com"],
+            "subject": "Test",
+            "body": "Test body",
+        })
+        assert unowned.status_code == 409
