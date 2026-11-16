@@ -24,16 +24,20 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
 | Sync job visibility in dashboard | Built | Recent job activity shown under Accounts & Settings. |
 | Cloud Run dashboard/API deployment | Prepared | Deployment script is ready. No completed Cloud Run deployment is recorded in the repository; confirm GCP project and billing state in the console. |
+| On-demand full-thread retrieval | Built | Retrieves source-provider Gmail/iCloud threads chronologically and reports potential gaps; tests verify retrieval does not mark messages read. |
+| New outbound email | Built | From must be explicitly selected; internal draft, final approval and uncertain-send protection are implemented and tested. |
+| ChatGPT plan integration | Design verified; implementation pending | OpenAI's published open-source SIWC flow documents a self-hosted VM path. Independent OAuth/PKCE, protected VM credential handling, Responses client, consent and AI task worker still need implementation and live account consent. |
+| User-controlled AI worker VM | Not provisioned | Requires a user's own VM and a cost review. GCE Always Free e2-micro is US-region-only; egress/network charges need checking before creation. |
 | Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. |
 | Cloud Scheduler background trigger | Prepared | One job every 15 minutes in Asia/Kolkata; can run with laptop off. |
 | Neon database | Created | Free-tier Email Assistant project and production branch are ready. Direct inspection on 16 Nov 2026 found no application tables; first successful app startup should initialise them. |
 | Per-email card actions | Built in feature branch | Each email card has its own View Original, Prepare Reply, Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question controls. AI actions report the approval blocker without returning fabricated output. |
 | Provider-confirmed read and unread | Built in feature branch | Both directions update iCloud/Gmail first; local state changes only after provider confirmation. |
 | No notifications | Built | No proactive notification delivery in current implementation. |
-| AI summaries/replies/task execution | Blocked pending approval | ChatGPT Go can be eligible in participating commercial apps, but this app has no commercial SIWC approval. Official open-source DevKit is noncommercial and is not used for business email processing. No API/credits fallback. |
+| AI summaries/replies/task execution | Not implemented; SIWC path identified | OpenAI documents a self-hosted VM flow for open-source apps. Implement independently from its public protocol; do not copy/use the noncommercial DevKit. AI stays disabled until user OAuth grants chatgpt.tokens.use.direct, explicit background consent is recorded, VM credential import works, and live inference is tested. No API/credits fallback. |
 | Attachments | Partially built | Original attachments can be listed, viewed and downloaded from the provider. AI extraction/analysis and Office-format previews are not implemented. |
 | Apple Notes/Reminders | Queue and device APIs built; Shortcut acceptance pending | Device enrolment, command queue, polling, idempotency and result receipts are implemented. A real Shortcut still needs setup and live testing on an enrolled Mac/iPhone. |
-| OpenAI commercial SIWC approval | Pending | Owner must request approval; do not embed the noncommercial DevKit for business use. |
+| SIWC account consent and host import | Pending | User must complete documented OAuth locally, grant ChatGPT plan usage and background processing consent, then transfer the protected credential file to the user's VM over a secure channel. Do not send tokens in chat or store them in Neon/Secret Manager/Cloud Run. |
 | Live provider acceptance test | Pending | Must test with non-critical mailbox. |
 | Production audit, backups/restore, rate limits and independent security review | Pending | Complete before relying on critical business email. |
 
