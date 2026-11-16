@@ -126,6 +126,22 @@ class ForwardDraft(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class OutboundDraft(Base):
+    __tablename__ = "outbound_drafts"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("email_accounts.id", ondelete="CASCADE"), index=True)
+    to_json: Mapped[list] = mapped_column(JSON, default=list)
+    cc_json: Mapped[list] = mapped_column(JSON, default=list)
+    bcc_json: Mapped[list] = mapped_column(JSON, default=list)
+    subject: Mapped[str] = mapped_column(Text, default="")
+    body: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(30), default="draft")
+    provider_sent_id: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
 class FollowUp(Base):
     __tablename__ = "follow_ups"
     id: Mapped[int] = mapped_column(primary_key=True)
