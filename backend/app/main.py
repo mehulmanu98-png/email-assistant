@@ -8,7 +8,9 @@ from urllib.parse import urlencode
 import httpx
 from fastapi import FastAPI, Depends, HTTPException, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from sqlalchemy import select, desc, func
 from sqlalchemy.orm import Session
 
@@ -51,8 +53,12 @@ def startup():
             raise RuntimeError("Production requires a random JWT_SECRET of at least 32 characters.")
         if len(settings.field_encryption_key) < 24:
             raise RuntimeError("Production requires a dedicated FIELD_ENCRYPTION_KEY seed.")
-        if len(settings.bootstrap_password) < 12:
-            raise RuntimeError("BOOTSTRAP_PASSWORD must contain at least 12 characters.")
+        if len(settings.bootstrap_password) < 12 or settings.bootstrap_password == "change-this-password":
+            raise RuntimeError("Set a unique BOOTSTRAP_PASSWORD of at least 12 characters.")
+        if not settings.frontend_origin.startswith("https://"):
+            raise RuntimeError("Production FRONTEND_ORIGIN must use HTTPS.")
+        if settings.google_client_id and not settings.google_redirect_uri.startswith("https://"):
+            raise RuntimeError("Production GOOGLE_REDIRECT_URI must use HTTPS.")
     init_db()
     db = next(get_db())
     try:
@@ -742,3 +748,27 @@ def conversation_message(
     item.messages = history
     db.commit()
     return {"id": item.id, "title": item.title, "messages": item.messages, "ai_reply_available": False}
+
+
+# Cloud Run serves the built React application from the same origin as the API.
+# Local Docker Compose continues to serve the frontend through Nginx.
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+if STATIC_DIR.is_dir():
+    assets_dir = STATIC_DIR / "assets"
+    if assets_dir.is_dir():
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="frontend-assets")
+
+    @app.get("/", include_in_schema=False)
+    def frontend_index():
+        return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/{frontend_path:path}", include_in_schema=False)
+    def frontend_fallback(frontend_path: str):
+        if frontend_path == "api" or frontend_path.startswith("api/"):
+            raise HTTPException(404, "Not found")
+        target = (STATIC_DIR / frontend_path).resolve()
+        if STATIC_DIR.resolve() not in target.parents:
+            raise HTTPException(404, "Not found")
+        if target.is_file():
+            return FileResponse(target)
+        return FileResponse(STATIC_DIR / "index.html")

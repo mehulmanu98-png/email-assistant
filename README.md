@@ -1,71 +1,65 @@
 # Email Assistant
 
-A private, single-user email workspace for iCloud Mail and Gmail. The application includes a React dashboard, FastAPI backend, PostgreSQL database and a separate durable mailbox-sync worker.
+Private single-user dashboard for iCloud Mail and Gmail. The current implementation includes a React interface, FastAPI backend, Neon-compatible PostgreSQL storage, provider sync, reply drafts and background mailbox jobs.
 
-## Important: local run vs background run
+## Background architecture
 
-The code in this repository is **not yet deployed to cloud hosting**. Running Docker Compose on your Mac is useful for testing, but closing or sleeping the Mac stops the local containers and scheduled worker.
+- **Neon PostgreSQL** stores accounts, encrypted provider credentials, messages, drafts, settings and sync jobs.
+- **Google Cloud Run** hosts the dashboard and API from one container. The dashboard can cold-start after idle time; this does not stop scheduled mailbox processing.
+- **GitHub Actions** runs an ephemeral background worker every 15 minutes. It reads the user's configured schedule in Asia/Kolkata, queues due mailbox syncs and processes manual/queued sync jobs. It does not require the MacBook to be on.
+- The default mailbox schedule is **08:00, 11:00, 14:00 and 17:00 Asia/Kolkata**. GitHub's scheduled runner is best-effort and can start late during platform load, so jobs are processed in a grace window rather than relying on exact-minute starts.
+- The GitHub Actions background worker requires the repository secrets `NEON_DATABASE_URL` and `EMAIL_ASSISTANT_FIELD_KEY`. The field-encryption value must be the same as the one stored by Cloud Run.
+- The app sends no proactive notifications.
 
-To run while your Mac is off, deploy the whole Docker Compose stack to an always-on cloud VM or equivalent container host: web frontend, API, PostgreSQL with persistent storage, and the worker. Put HTTPS in front of the web service (the Compose file binds it to localhost by default for a same-host TLS reverse proxy). The cloud host must keep the worker running and retain the database volume. A free plan that sleeps or pauses cannot guarantee scheduled sync. No hosting provider has been selected, no cloud deployment has been performed, and no mailbox credentials are stored in this public repository.
+## Deployment status
 
-## Current capabilities
+Repository source and CI are maintained here: https://github.com/mehulmanu98-png/email-assistant
 
-- Unified inbox storage for iCloud Mail and Gmail.
-- iCloud Mail via Apple app-specific password; Gmail via Google OAuth with PKCE and offline refresh credentials.
-- Initial 90-day Inbox import, incremental mailbox sync, and resumable 500-message batches.
-- Scheduled mailbox sync at **08:00, 11:00, 14:00 and 17:00 Asia/Kolkata** by default. These settings can be edited in the dashboard.
-- Manual Sync Now and per-account sync.
-- Provider-confirmed read-state changes and provider Trash operations.
-- Internal Reply All drafts with editable To/CC/BCC, locked From account, and explicit send confirmation.
-- App-only sender blocking, follow-ups and task/conversation records.
-- Raw email body hidden until the user chooses **Show original email**.
-- No proactive notifications.
+The application is **not yet live**. No Neon database or Google Cloud project has been provisioned from this repository. Cloud Run needs a Google Cloud account with billing enabled; eligible free allowances and trial credits may offset usage, but they are not a guaranteed zero-cost hosting promise. Keep Cloud Billing budgets/alerts and review usage. See the Google Cloud pricing and free-tier pages before deploying.
 
-## What is not active
+## Deploy
 
-AI email summaries, AI-generated replies, automatic follow-up extraction, AI task execution, attachment downloading/previewing and the Apple Notes/Reminders bridge are not active in this release. The AI features are deliberately disabled rather than returning invented content. There is no OpenAI API billing or paid fallback configured.
+Prerequisites: a Neon project, Google Cloud project with billing enabled, Google Cloud CLI, OpenSSL, and (recommended) GitHub CLI authenticated to the repository.
 
-## Local testing
+1. In Neon, create a Postgres project and copy the **pooled** connection string. Keep it private. Neon free quotas and compute auto-suspend are subject to the current plan; do not exceed the monthly allowance.
+2. Clone this repository and open a terminal at its root.
+3. Authenticate with Google Cloud using `gcloud auth login`, select/create a Google Cloud project, and make sure billing is enabled.
+4. Run `bash scripts/deploy-cloud-run.sh`. It asks for the project ID, Neon connection URI, dashboard login email/password and optional Google OAuth credentials. It generates random application secrets and stores them in Google Secret Manager. It also adds the Neon URL and field key to GitHub Actions Secrets when GitHub CLI is installed and authenticated.
+5. The script prints the Cloud Run dashboard URL and the Google OAuth callback URI. Add that exact callback URI to the Google OAuth Web application client. If Gmail OAuth was not configured during deployment, add the OAuth credentials as Google Secret Manager secrets and update the Cloud Run service environment before connecting Gmail.
+6. Open the Cloud Run URL and sign in with the dashboard credentials. Connect a test iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
+7. In GitHub, open Actions and check **Email mailbox background sync**. You can manually run it with **Run workflow** to test the Neon connection. Confirm that the scheduled runs complete and messages appear in the dashboard.
 
-Requires Docker Desktop with Docker Compose v2.
+## Local development
 
-1. Clone this repository.
-2. Run `bash scripts/setup-local.sh` from the repository root.
-3. Enter your dashboard email and a unique password. The script generates local secrets and starts the services.
-4. Open http://localhost:8080 and sign in.
-5. Add an iCloud account with an Apple app-specific password and/or connect Gmail through Google's consent screen.
+Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh` from the repository root and open http://localhost:8080. This is local testing only; closing the Mac stops the local containers. Local Compose uses its own PostgreSQL container unless you change `DATABASE_URL`.
 
-The setup script creates a private `.env` file with restrictive permissions and refuses to overwrite an existing one. Never commit or share `.env`. The database is private and is not exposed as a host port. `docker compose down` stops the services; `docker compose down -v` deletes the local database volume.
+## Mailbox behaviour
 
-## Gmail OAuth setup
+- iCloud uses IMAP and SMTP with an Apple app-specific password.
+- Gmail uses Google OAuth and Gmail API; the app never asks for the user's Google password.
+- Initial import covers the last 90 days of Inbox. Sync is resumable in batches of up to 500 messages per run.
+- Read-state and Trash are only updated locally after provider confirmation.
+- Replies default to Reply All recipient handling where headers permit, allow edits to To/CC/BCC, lock From to the original account, and require a separate send approval.
+- Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
+- The raw message is hidden until the user chooses **Show original email**.
 
-Create a Google Cloud project, enable the Gmail API, configure the OAuth consent screen and create an OAuth client of type **Web application**. Register the exact redirect URI:
+## AI and other unfinished features
 
-`http://localhost:8080/api/oauth/gmail/callback`
+AI summaries, AI-generated replies, automatic follow-up extraction, task execution, attachment downloading/previewing and the Apple Notes/Reminders bridge are not active. No OpenAI API billing, external AI API, paid model fallback or fabricated AI response is enabled. App-managed conversations/tasks are stored but do not produce AI answers under the current configuration.
 
-Enter the client ID and secret in the local setup prompt. Google handles account selection and consent; never enter your Google password into this app. For a cloud deployment, change the redirect URI and `GOOGLE_REDIRECT_URI` to the HTTPS hostname and update `FRONTEND_ORIGIN` to the same origin.
+## Security and operating notes
 
-## Cloud deployment requirements
+- The repository is public source code, not a public mailbox. Email data and credentials belong in Neon/Google Secret Manager, never in Git.
+- Keep Neon connection URIs, Apple app passwords, Google OAuth secrets, dashboard passwords, JWT secrets and the field key private.
+- Cloud Run is protected by the app's single-user login; use a strong unique password. The application requires HTTPS in production.
+- Do not expose the Neon database to unrestricted public access; use the pooled URL, require TLS and rotate credentials if exposed.
+- GitHub Actions runs code from the default branch with access to the two explicitly configured secrets. Keep repository write access restricted.
+- Free tiers can sleep, auto-suspend, cap usage or change. Scheduled GitHub runs are best-effort, not a guaranteed SLA. Monitor Cloud Run billing and Neon usage.
 
-For production, set `APP_ENV=production`, a long random `JWT_SECRET`, a stable private `FIELD_ENCRYPTION_KEY`, a strong database password and the correct HTTPS `FRONTEND_ORIGIN` and `GOOGLE_REDIRECT_URI`. Use a durable PostgreSQL volume, HTTPS reverse proxy, firewall, backups and restore testing. Do not expose PostgreSQL or the API directly to the public internet. The same encrypted credentials and database volume must persist across restarts. Never publish the `.env` file or database backups.
-
-Cloud deployment still requires an account/host, domain or supported HTTPS URL, secure environment-variable entry and live iCloud/Gmail OAuth testing. These credentials and provider approvals cannot be safely guessed or fabricated.
-
-## Safeguards and limitations
-
-- Opening a message marks it read only after provider confirmation.
-- Trash is provider-side; permanent deletion is not exposed.
-- Reply From is fixed to the original receiving account.
-- Sending requires explicit approval and a draft-version check. If the provider's response is uncertain, the draft is locked against blind retry; check Sent first.
-- Blocking is app-only, not a provider-level block.
-- HTML is not executed. Attachments are detected but not downloaded or extracted.
-- Conversations and tasks are stored in this app and are separate from ChatGPT history.
-- The current ChatGPT Go plan is not eligible for the official open-source ChatGPT plan-usage route; no API key or paid fallback has been added.
-
-## Checks
+## Automated checks
 
 Backend: `cd backend && pytest -q`
 
 Frontend: `cd frontend && npm install && npm run build`
 
-The GitHub Actions workflow runs both checks on every push to `main`. Automated checks do not replace real mailbox, OAuth, delivery, backup or device testing.
+The CI workflow also builds the root Cloud Run Docker image. Automated checks do not replace live iCloud/Gmail mailbox and delivery tests.

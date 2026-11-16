@@ -1,12 +1,34 @@
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 from .config import settings
+
+
+def normalize_database_url(value: str):
+    """Make provider-supplied PostgreSQL URLs compatible with psycopg 3 and TLS."""
+    url = make_url(value.strip())
+    if url.get_backend_name() == "postgresql":
+        if url.drivername == "postgresql":
+            url = url.set(drivername="postgresql+psycopg")
+        query = dict(url.query)
+        query.setdefault("sslmode", "require")
+        url = url.set(query=query)
+    return url
+
+
+DATABASE_URL = normalize_database_url(settings.database_url)
+engine_options = {"pool_pre_ping": True}
+if DATABASE_URL.get_backend_name() == "sqlite":
+    engine_options["connect_args"] = {"check_same_thread": False}
+else:
+    engine_options.update({"pool_size": 2, "max_overflow": 2, "pool_timeout": 30, "pool_recycle": 300})
+engine = create_engine(DATABASE_URL, **engine_options)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
 
 class Base(DeclarativeBase):
     pass
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 def get_db():
     db = SessionLocal()
@@ -15,6 +37,7 @@ def get_db():
     finally:
         db.close()
 
+
 def _add_missing_columns(table: str, definitions: dict[str, str]) -> None:
     existing = {column["name"] for column in inspect(engine).get_columns(table)}
     missing = [(name, sql_type) for name, sql_type in definitions.items() if name not in existing]
@@ -22,6 +45,7 @@ def _add_missing_columns(table: str, definitions: dict[str, str]) -> None:
         with engine.begin() as connection:
             for name, sql_type in missing:
                 connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sql_type}"))
+
 
 def init_db():
     from . import models  # noqa: F401

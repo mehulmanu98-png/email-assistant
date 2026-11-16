@@ -1,0 +1,51 @@
+name: Email mailbox background sync
+
+on:
+  schedule:
+    # Check for due mailbox schedules and manually queued syncs every 15 minutes.
+    - cron: "3,18,33,48 * * * *"
+      timezone: "Asia/Kolkata"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: email-assistant-neon-mail-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      FIELD_ENCRYPTION_KEY: ${{ secrets.EMAIL_ASSISTANT_FIELD_KEY }}
+      TIMEZONE: Asia/Kolkata
+      AUTO_SYNC_TIMES: "08:00,11:00,14:00,17:00"
+      MAX_MESSAGES_PER_SYNC: "500"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check private runtime secrets
+        id: secrets
+        shell: bash
+        run: |
+          if [[ -z "${DATABASE_URL}" || -z "${FIELD_ENCRYPTION_KEY}" ]]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Add NEON_DATABASE_URL and EMAIL_ASSISTANT_FIELD_KEY under repository Settings > Secrets and variables > Actions to enable mailbox sync."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-python@v5
+        if: steps.secrets.outputs.configured == 'true'
+        with:
+          python-version: "3.12"
+      - name: Install backend dependencies
+        if: steps.secrets.outputs.configured == 'true'
+        run: pip install -r requirements.txt
+      - name: Run due syncs and queued jobs
+        if: steps.secrets.outputs.configured == 'true'
+        run: python -m app.worker --scheduled-once

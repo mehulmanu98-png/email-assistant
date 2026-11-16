@@ -1,44 +1,39 @@
 # Delivery checklist — Email Assistant
 
-Status is conservative. **Built** means code is present and automated checks cover the feature where appropriate. Real Apple/Google account tests and cloud deployment have not been completed.
-
-## Working code
+Status as of the latest code commit. CI passing does not prove live provider or cloud deployment.
 
 | Area | Status | Notes |
 |---|---|---|
-| FastAPI backend, React dashboard, PostgreSQL and worker | Built | Docker Compose services are included. |
-| Single-user login and encrypted provider credentials | Built | Production secrets must be configured privately. |
-| iCloud connection | Built | Apple app-specific password; test with a non-critical mailbox. |
-| Gmail OAuth with PKCE and refresh token | Built | Requires Google Cloud OAuth web client and consent approval. |
-| Initial 90-day Inbox import | Built | iCloud/Gmail sync uses 500-message resumable batches. |
-| Incremental mailbox sync | Built | Dedupe and provider cursor state are persisted. |
-| Scheduled sync | Built | Default 08:00, 11:00, 14:00 and 17:00 IST; editable in dashboard. |
-| Manual sync and per-account sync | Built | Jobs are processed by the background worker. |
-| Provider-confirmed read state and Trash | Built | IMAP/Gmail actions still need live account testing. |
-| Reply All draft editor | Built | To/CC/BCC editable; From locked to source mailbox. |
-| Explicit send approval and duplicate protection | Built | Provider acceptance is not proof of final delivery. |
-| Follow-ups and task/conversation records | Partial | Manual records only; AI extraction/execution disabled. |
-| Original email hidden until requested | Built | User can select Show original email. |
-| No-notification preference | Built | No notification delivery code configured. |
-| Attachment preview/download and Notes/Reminders bridge | Not built | |
-| AI summaries, reply generation and auto-follow-up extraction | Disabled | No AI API billing or paid fallback. |
-| Production backup/restore, audit, rate limits and security review | Not complete | Required before storing sensitive production mail. |
+| React dashboard and FastAPI API | Built | Cloud Run image serves both on one origin. |
+| PostgreSQL-compatible database layer | Built | Accepts Neon pooled PostgreSQL URL and adds TLS when absent. |
+| User login and encrypted mailbox credentials | Built | Production secrets required; single-user bootstrap. |
+| iCloud IMAP inbox import | Built | Initial 90 days; resumable 500-message batches. |
+| Gmail OAuth + Gmail API | Built | Google OAuth Web client and redirect URI still need setup. |
+| Incremental sync and deduplication | Built | Persisted provider cursors/page tokens. |
+| iCloud UID handling for no-Message-ID mail | Built | Uses stored IMAP UID for supported actions. |
+| Provider-confirmed read and Trash | Built | Real-account validation pending. |
+| Reply All drafts and send approval | Built | To/CC/BCC; From locked; check Sent after uncertain response. |
+| User-editable sync times | Built | Timezone-aware due scheduling and grace window. |
+| One-shot worker for ephemeral runner | Built | Reclaims stale jobs after interrupted runs. |
+| Scheduled worker workflow | Built | GitHub Actions every 15 minutes; requires Neon URL and field key secrets. |
+| Neon deployment | Ready for setup | No Neon project/credentials provisioned yet. |
+| Cloud Run single-container deploy | Prepared | No Google Cloud account/project/deployment yet; billing account required. |
+| GitHub scheduled-run secrets | Scripted | Automatically set by deploy script if GitHub CLI is authenticated; otherwise add manually. |
+| No notifications | Built | No proactive notification delivery. |
+| AI summaries/replies/task execution | Disabled | Current ChatGPT Go setup not enabled for official plan-usage integration; no API billing. |
+| Attachments and Apple Notes/Reminders | Not built | |
+| Live provider acceptance test | Pending | Must test with non-critical mailbox. |
+| Production audit, backups/restore, rate limits and independent security review | Pending | Complete before relying on critical business email. |
 
-## Background operation
+## Deployment acceptance
 
-- **Local laptop run:** Docker services run only while the Mac and Docker are running.
-- **Cloud run:** Requires deployment of frontend, API, PostgreSQL and worker to an always-on server/container host with persistent storage. HTTPS and private secrets are required.
-- **Current state:** Repository code only. No cloud provider account, server, domain, secret store or live deployment has been provisioned. A free host that sleeps cannot guarantee 24/7 execution.
+1. Create Neon project and obtain pooled TLS connection URI.
+2. Create Google Cloud project and enable billing; review cost/budget controls before running the deployment script.
+3. Run `bash scripts/deploy-cloud-run.sh` from a clone with `gcloud auth login`. The script prompts for secrets without echoing them and stores application secrets in Google Secret Manager.
+4. Add the printed Google OAuth callback URI to the Google OAuth Web client.
+5. Sign into Cloud Run dashboard; connect test iCloud and Gmail accounts.
+6. Confirm GitHub Actions secrets `NEON_DATABASE_URL` and `EMAIL_ASSISTANT_FIELD_KEY` exist. Manually run **Email mailbox background sync** once and verify a successful job against Neon.
+7. Check that scheduled runs complete, email records appear in the dashboard, and a test reply works for each provider.
+8. Review Google Cloud billing and Neon usage after initial operation. Free allowances are limits, not an assurance of zero cost.
 
-## One-time setup and acceptance test
-
-1. Install Docker Desktop and Docker Compose v2 for local testing, or select an always-on cloud host for remote operation.
-2. For Gmail, create a Google Cloud project, enable Gmail API, configure consent and create a Web OAuth client; use the app's exact HTTPS redirect URI for cloud or localhost URI for local testing.
-3. Run `bash scripts/setup-local.sh` locally or configure the private production environment on the cloud host.
-4. Connect a test iCloud mailbox using an Apple app-specific password and/or connect Gmail through Google's OAuth screen.
-5. Check first import, pagination, incremental sync, scheduled worker operation, provider read-state, Trash and a reply sent to an address you control.
-6. Confirm the GitHub Actions run is green. CI cannot replace real-provider tests.
-
-## Not yet complete
-
-Cloud deployment, AI execution, attachment processing, Apple Notes/Reminders, forwarded-email workflow, and production hardening remain outstanding. No notification delivery is configured.
+No live deployment or mailbox access is claimed until the user completes the account/credential setup and a real provider test succeeds.
