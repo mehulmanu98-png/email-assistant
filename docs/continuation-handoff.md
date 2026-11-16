@@ -36,17 +36,21 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - iCloud mailbox connection, initial 90-day import and resumable sync.
 - Gmail OAuth/API integration code; OAuth Web client credentials and callback configuration still need real-account setup.
 - Incremental sync and provider message identity/deduplication.
-- Provider-confirmed read and Trash operations.
+- Provider-confirmed read/unread and Trash operations.
+- Per-email card controls for View Original, Prepare Reply, Mark Read/Unread, Delete, app-only Block Sender, Summarise Entire Thread and Ask a Question. AI-only actions clearly state that the commercial integration is pending.
+- On-demand full provider-thread retrieval for iCloud/Gmail, including available original Sent messages and chronological ordering; provider scan diagnostics identify incomplete or uncertain coverage.
 - Reply All draft creation/editing and explicit send approval; uncertain send protection.
+- New outbound composer with mandatory From account selection, internal draft persistence, final send approval and uncertain-send protection.
 - Separate forward draft persistence, editing, optional source-attachment inclusion, source-account locking, explicit approval and uncertain-send protection; Gmail forward MIME has a regression test to ensure it does not reuse the original thread ID.
 - Neon-backed sync jobs, retry/backoff, stale-job recovery and singleton worker lease.
 - Cloud Run deployment script, one-shot Cloud Run Job and Cloud Scheduler setup.
 - Manual Sync Now and first account import commit durable sync jobs and request immediate Cloud Run worker execution using the dashboard runtime service identity; the 15-minute Scheduler trigger remains the fallback.
-- Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, edit, snooze, mark complete and remove tracking item without changing the email.
+- Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, manual creation from the Follow-ups page or selected email, edit, snooze, mark complete and remove tracking item without changing the email.
 - Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
 - App-managed email-thread linking with one-time history backfill, per-message deduplication, automatic append on subsequent mailbox syncs, and unlink/relink history retention.
 - Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts.
+- Initial authentication hardening: persistent lockout after five failed attempts for 15 minutes, plus production Origin validation for browser state-changing requests; Apple Shortcut token routes retain separate device-token authentication.
 - Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show the pending commercial approval status without fabricating an answer.
 
 ### Intentionally not active yet
@@ -111,10 +115,11 @@ The assistant should continue code, tests and documentation that do not require 
 ## Next engineering priorities
 
 1. Obtain written OpenAI commercial-integration approval and its supported remote-hosted token/usage architecture; until then, keep all AI actions blocked and do not add a paid API fallback.
-2. Complete live acceptance of full source-provider thread retrieval (including original Sent messages) against a non-critical iCloud/Gmail account.
-3. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
-4. After AI approval, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
-5. Complete deployment, live iCloud/Gmail provider acceptance, backup/restore checks, rate limits, audit review and public-source security/licence review before relying on critical business email.
+2. Complete Google Cloud deployment, confirm runtime service identity permissions and execute the initial Cloud Run worker against Neon.
+3. Connect a non-critical iCloud mailbox (and Gmail if required) and perform live acceptance of sync, full thread retrieval, read/unread, Trash, reply, forward and outbound send workflows.
+4. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
+5. After written AI approval and a compliant laptop-off token/runtime architecture, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
+6. Complete database backup/restore tests, independent security review, provider acceptance and public-source security/licence review before relying on critical business email.
 
 ## CI and release discipline
 
