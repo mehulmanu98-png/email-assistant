@@ -527,3 +527,47 @@ def test_forward_draft_uses_source_account_separate_thread_and_explicit_approval
             assert stored.provider_sent_id == "gmail-forwarded-message-id"
         finally:
             db.close()
+
+
+def test_forward_creation_is_blocked_while_prior_send_result_is_uncertain():
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"forward-uncertain-{uuid.uuid4().hex}@example.com",
+                connection_status="connected",
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+            source = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="gmail-forward-uncertain-source",
+                thread_key="gmail-forward-uncertain-thread",
+                sender="sender@example.com", recipients=account.email,
+                subject="Order confirmation", body_text="Original order details.",
+            )
+            db.add(source)
+            db.commit()
+            db.refresh(source)
+            message_id = source.id
+        finally:
+            db.close()
+
+        created = client.post(f"/api/messages/{message_id}/forward")
+        assert created.status_code == 200
+        db = SessionLocal()
+        try:
+            draft = db.get(ForwardDraft, created.json()["id"])
+            assert draft is not None
+            draft.status = "send_uncertain"
+            db.commit()
+        finally:
+            db.close()
+
+        blocked = client.post(f"/api/messages/{message_id}/forward")
+        assert blocked.status_code == 409
+        assert "Sent folder" in blocked.json()["detail"]
