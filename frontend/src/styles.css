@@ -92,3 +92,27 @@
 .message-card-actions .danger{color:#a84e4e;border-color:#ead1d1}
 .message-card-actions .ai-pending{color:#7a8492;background:#f7f8fa}
 @media(max-width:700px){.message-card-actions{padding:0 9px 10px;gap:5px}.message-card-actions .button{font-size:9px;padding:7px 3px}}
+
+
+/* Full source-provider email thread viewer. */
+.detail-view-tools{margin-top:12px}
+.full-thread-panel{margin-top:16px;border:1px solid #e5eaf0;border-radius:10px;background:#fff;overflow:hidden}
+.full-thread-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;background:#f7f8fa;border-bottom:1px solid #e9edf1}
+.full-thread-heading b,.full-thread-heading small{display:block}
+.full-thread-heading b{font-size:12px}
+.full-thread-heading small{font-size:10px;color:#87919e;margin-top:4px}
+.thread-complete,.thread-partial{font-size:10px;font-weight:700;border-radius:20px;padding:6px 9px;white-space:nowrap}
+.thread-complete{background:#edf5ef;color:#497552}
+.thread-partial{background:#fff2df;color:#956126}
+.thread-read-note{font-size:10px;color:#687586;margin:0;padding:10px 14px;background:#fbfcfd}
+.thread-warning{font-size:10px;color:#8b5e29;margin:0;padding:7px 14px;background:#fff8ed;border-top:1px solid #f3e7d4}
+.thread-message{padding:14px;border-top:1px solid #edf0f3}
+.thread-message:first-of-type{border-top:0}
+.thread-message-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.thread-message-head b{font-size:11px}
+.thread-message-head small{font-size:10px;color:#8c96a2;text-align:right}
+.thread-subject{font-size:11px;font-weight:700;color:#465367;margin:8px 0 3px}
+.thread-recipients{font-size:10px;color:#8b95a1;margin:0 0 9px}
+.thread-message pre{white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.65 'DM Sans';color:#566171;margin:0}
+.thread-attachment-note{display:block;color:#8a744e;margin-top:9px;font-size:10px}
+@media(max-width:700px){.full-thread-heading{align-items:flex-start;flex-direction:column}.thread-message-head{flex-direction:column;gap:4px}.thread-message-head small{text-align:left}}

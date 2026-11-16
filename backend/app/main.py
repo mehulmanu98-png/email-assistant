@@ -36,6 +36,7 @@ from .policy import effective_priority
 from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
 from .gmail import set_gmail_read, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
 from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
+from .thread_retrieval import load_provider_thread
 
 app = FastAPI(title=settings.app_name, version="0.2.0")
 app.add_middleware(
@@ -389,6 +390,49 @@ def message_detail(message_id: int, user: User = Depends(current_user), db: Sess
         "summary": row.current_summary, "thread_summary": row.thread_summary,
         "is_read": row.is_read, "has_attachments": row.has_attachments
     }
+
+@app.get("/api/messages/{message_id}/thread")
+def message_thread(
+    message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    source = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id,
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(False),
+    ))
+    if not source:
+        raise HTTPException(404, "Email not found")
+    account = db.get(EmailAccount, source.account_id)
+    if not account or account.user_id != user.id:
+        raise HTTPException(409, "Source email account is unavailable.")
+    try:
+        rows, provider_scan_complete, partial_reasons, imported_count = load_provider_thread(
+            db, account, source
+        )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(502, f"The source provider could not retrieve this email thread ({type(exc).__name__}).")
+    return {
+        "message_id": source.id,
+        "provider": account.provider,
+        "account_email": account.email,
+        "provider_scan_complete": provider_scan_complete,
+        "partial_reasons": partial_reasons,
+        "imported_messages": imported_count,
+        "message_count": len(rows),
+        "read_state_changed": False,
+        "messages": [{
+            "id": row.id,
+            "sender": row.sender,
+            "recipients": row.recipients,
+            "subject": row.subject,
+            "received_at": row.received_at,
+            "body_text": row.body_text,
+            "is_read": row.is_read,
+            "has_attachments": row.has_attachments,
+        } for row in rows],
+    }
+
 
 @app.get("/api/messages/{message_id}/attachments")
 def message_attachments(
