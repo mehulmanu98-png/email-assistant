@@ -80,3 +80,15 @@
 .apple-pending-note{padding:8px 10px;background:#fff8e9;border:1px solid #f1e4c8;border-radius:7px}
 .apple-command-modal textarea{min-height:100px}
 @media(max-width:700px){.apple-enroll-row{align-items:stretch;flex-direction:column}.apple-command-row{flex-wrap:wrap;align-items:flex-start}.apple-command-info{min-width:calc(100% - 48px)}.apple-command-state{margin-left:40px}.apple-command-actions{margin-left:auto}.apple-enrollment-code{grid-template-columns:1fr}.apple-enrollment-code code,.apple-enrollment-code>small{grid-column:1}}
+
+
+/* Per-email actions: every inbox card owns its controls. */
+.message-card{border-top:1px solid #f0f2f4;background:#fff}
+.message-card.selected{background:#f5f7fb;border-left:3px solid #526987}
+.message-card .message-row{border-top:0}
+.message-card.selected .message-row{background:#f5f7fb;padding-left:15px}
+.message-card-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:0 12px 12px}
+.message-card-actions .button{width:100%;min-width:0;padding:7px 5px;font-size:10px;line-height:1.25;white-space:normal;text-align:center}
+.message-card-actions .danger{color:#a84e4e;border-color:#ead1d1}
+.message-card-actions .ai-pending{color:#7a8492;background:#f7f8fa}
+@media(max-width:700px){.message-card-actions{padding:0 9px 10px;gap:5px}.message-card-actions .button{font-size:9px;padding:7px 3px}}
