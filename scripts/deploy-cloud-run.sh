@@ -76,7 +76,7 @@ gcloud run deploy "$SERVICE" \
   --source . --project "$PROJECT_ID" --region "$REGION" \
   --service-account "$RUNTIME_SA" --allow-unauthenticated \
   --port 8080 --memory 512Mi --cpu 1 --max 1 \
-  --set-env-vars "APP_ENV=production,BOOTSTRAP_EMAIL=$BOOTSTRAP_EMAIL,TIMEZONE=Asia/Kolkata,INITIAL_SYNC_DAYS=90,MAX_MESSAGES_PER_SYNC=500,FRONTEND_ORIGIN=https://placeholder.invalid" \
+  --set-env-vars "APP_ENV=production,BOOTSTRAP_EMAIL=$BOOTSTRAP_EMAIL,TIMEZONE=Asia/Kolkata,INITIAL_SYNC_DAYS=90,MAX_MESSAGES_PER_SYNC=500,FRONTEND_ORIGIN=https://placeholder.invalid,GOOGLE_REDIRECT_URI=https://placeholder.invalid/api/oauth/gmail/callback" \
   --set-secrets "$SECRET_MAP"
 
 SERVICE_URL="$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')"
@@ -93,6 +93,9 @@ else
   echo "GitHub CLI is not authenticated. Add these Actions secrets manually:"
   echo "  NEON_DATABASE_URL"
   echo "  EMAIL_ASSISTANT_FIELD_KEY"
+  echo "After gh auth login, run these commands to copy the encrypted secret values without displaying them:"
+  echo "  gcloud secrets versions access latest --secret=email-assistant-neon-url --project $PROJECT_ID | gh secret set NEON_DATABASE_URL --repo $REPO"
+  echo "  gcloud secrets versions access latest --secret=email-assistant-field-key --project $PROJECT_ID | gh secret set EMAIL_ASSISTANT_FIELD_KEY --repo $REPO"
 fi
 
 echo "Dashboard URL: $SERVICE_URL"
