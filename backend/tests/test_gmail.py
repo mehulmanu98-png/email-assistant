@@ -61,3 +61,57 @@ def test_gmail_attachment_metadata_and_inline_content_are_detected():
     assert parts[1]["filename"] == "logo@example.com"
     assert parts[1]["is_inline"] is True
     assert _decode_bytes(parts[1]["data"]) == b"image-bytes"
+
+
+def test_gmail_forward_builds_new_message_without_original_thread_id(monkeypatch):
+    from email import message_from_bytes
+    from app import gmail
+    from app.models import EmailAccount, EmailMessage as StoredMessage
+    captured = {}
+
+    def fake_gmail_request(db, account, method, path, json_body=None, **kwargs):
+        captured["method"] = method
+        captured["path"] = path
+        captured["json_body"] = json_body
+        return {"id": "gmail-forward-result"}
+
+    monkeypatch.setattr(gmail, "gmail_request", fake_gmail_request)
+    monkeypatch.setattr(gmail, "list_gmail_attachments", lambda *args: [{
+        "index": 0, "filename": "contract.pdf", "mime_type": "application/pdf",
+        "size": 8, "is_inline": False, "can_preview": True, "available": True,
+    }])
+    monkeypatch.setattr(gmail, "get_gmail_attachment", lambda *args: {
+        "filename": "contract.pdf", "mime_type": "application/pdf",
+        "size": 8, "is_inline": False, "data": b"%PDFtest",
+    })
+    account = EmailAccount(
+        id=1, user_id=1, provider="gmail",
+        email="owner@example.com", connection_status="connected",
+    )
+    source = StoredMessage(
+        id=9, user_id=1, account_id=1,
+        provider_message_id="original-provider-id",
+        thread_key="original-gmail-thread",
+        sender="sender@example.com", recipients="owner@example.com",
+        subject="Contract", body_text="Original contract text",
+    )
+
+    result = gmail.send_gmail_forward(
+        None, account, ["recipient@example.com"], [], [],
+        "Fwd: Contract", "Please review.", source, True,
+    )
+
+    assert result == "gmail-forward-result"
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/messages/send"
+    assert "threadId" not in captured["json_body"]
+    raw = captured["json_body"]["raw"]
+    parsed = message_from_bytes(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+    assert parsed["In-Reply-To"] is None
+    assert parsed["From"] == "owner@example.com"
+    assert parsed["To"] == "recipient@example.com"
+    parts = list(parsed.walk())
+    assert any(part.get_filename() == "contract.pdf" for part in parts)
+    body = next(part for part in parts if part.get_content_type() == "text/plain")
+    assert "Original contract text" in body.get_content()
+    assert "Please review." in body.get_content()
