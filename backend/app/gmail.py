@@ -271,6 +271,62 @@ def trash_gmail(db: Session, account: EmailAccount, provider_id: str) -> bool:
     data = gmail_request(db, account, "POST", "/messages/" + provider_id + "/trash")
     return bool(data.get("id") == provider_id)
 
+def send_gmail_forward(
+    db: Session, account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
+    subject: str, cover_note: str, source_message: StoredMessage,
+    include_attachments: bool = True,
+) -> str:
+    forwarded = (
+        "---------- Forwarded message ---------\n"
+        f"From: {source_message.sender}\n"
+        f"Date: {source_message.received_at or 'Unknown'}\n"
+        f"Subject: {source_message.subject}\n"
+        f"To: {source_message.recipients}\n\n"
+        f"{source_message.body_text or ''}"
+    )
+    body = (cover_note.strip() + "\n\n" if cover_note.strip() else "") + forwarded
+    message = MIMEEmailMessage()
+    message["From"] = account.email
+    message["To"] = ", ".join(to)
+    if cc:
+        message["Cc"] = ", ".join(cc)
+    if bcc:
+        message["Bcc"] = ", ".join(bcc)
+    message["Subject"] = subject
+    message["Message-ID"] = make_msgid()
+    message.set_content(body)
+
+    if include_attachments:
+        metadata = list_gmail_attachments(db, account, source_message.provider_message_id)
+        total_size = 0
+        for item in metadata:
+            attachment = get_gmail_attachment(
+                db, account, source_message.provider_message_id, item["index"]
+            )
+            data = attachment["data"]
+            total_size += len(data)
+            if total_size > MAX_ATTACHMENT_BYTES:
+                raise ValueError("The combined original attachments exceed the 25 MB forwarding limit.")
+            mime_type = attachment["mime_type"].split("/", 1)
+            if len(mime_type) != 2:
+                mime_type = ["application", "octet-stream"]
+            message.add_attachment(
+                data,
+                maintype=mime_type[0],
+                subtype=mime_type[1],
+                filename=attachment["filename"] or "attachment",
+            )
+
+    recipients = list(dict.fromkeys(to + cc + bcc))
+    if not recipients:
+        raise RuntimeError("No recipients were supplied.")
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode().rstrip("=")
+    result = gmail_request(db, account, "POST", "/messages/send", json_body={"raw": raw})
+    if not result.get("id"):
+        raise RuntimeError("Gmail did not confirm an accepted forwarded message.")
+    return str(result["id"])
+
+
 def send_gmail(db: Session, account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
                subject: str, body: str, source_message: StoredMessage | None = None) -> str:
     message = MIMEEmailMessage()
