@@ -107,7 +107,7 @@ export default function App(){
         {f.message_id&&<button className="button secondary compact" onClick={()=>openFollowupSource(f.message_id)}>Open Email Trail</button>}
         <button className="button secondary compact" onClick={async()=>{try{await api.completeFollowup(f.id);setNotice("Follow-up marked complete.");await refresh()}catch(err){setNotice(String(err))}}}>Mark Complete</button>
         <button className="button secondary compact" onClick={()=>setEditingFollowup({...f,due_local:toLocalDateTime(f.due_at)})}>Edit</button>
-        <button className="button secondary compact" onClick={()=>{setSnoozingFollowup(f);setSnoozeUntil(toLocalDateTime(f.due_at))}}>Snooze</button>
+        <button className="button secondary compact" onClick={()=>{setSnoozingFollowup(f);const suggested=f.due_at&&new Date(f.due_at).getTime()>Date.now()?f.due_at:new Date(Date.now()+24*60*60*1000).toISOString();setSnoozeUntil(toLocalDateTime(suggested))}}>Snooze</button>
         <button className="followup-remove" onClick={async()=>{if(!window.confirm("Remove this tracking item only? The email and conversation will remain unchanged."))return;try{await api.removeFollowup(f.id);setNotice("Follow-up removed. The email and conversation were retained.");await refresh()}catch(err){setNotice(String(err))}}}>Remove from Follow-ups</button>
        </div>
       </div>
