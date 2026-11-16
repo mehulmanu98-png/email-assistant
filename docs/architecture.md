@@ -367,18 +367,22 @@ Do not implement recurrence rules, recurring-task scheduler triggers, or automat
 ## 17. AI integration, zero-cost operation and open-source release — approved direction
 
 ### AI provider path
-- Preferred path: supported OpenAI Sign in with ChatGPT / ChatGPT plan usage integration for an open-source personal application, implemented only with the current official SIWC SDK and documentation.
-- Verify the user's ChatGPT Go account eligibility and whether the exact deployment model is supported. Open-source status alone must not be treated as proof that a remotely hosted deployment is eligible.
+- Preferred path: the documented Sign in with ChatGPT open-source client flow for eligible ChatGPT plan usage. Implement the published OAuth/PKCE and Responses protocol independently; do not copy or bundle the official open-source DevKit, which is under a Noncommercial License.
+- OpenAI documents a self-hosted-VM procedure: authenticate locally on the user's Mac, transfer the protected credential file to a remote VM the user controls, and let that VM manage subsequent refreshes. The dedicated VM's stable host ID must be distinct from the Mac's host ID.
+- No OpenAI partner API key, client secret or OpenAI API key is used in this open-source flow. The token response must include chatgpt.tokens.use.direct before inference is enabled.
+- The AI VM is a separate user-controlled runtime. Persistent SIWC credentials are stored only on its local filesystem with owner-only access; never in Neon/Postgres, Google Secret Manager, Cloud Run environment variables, source control, browser storage, URLs or logs.
+- The user must separately authorise plan usage and expressly consent to each enabled category of background AI processing. Make that consent visible, revocable and auditable.
 - The app's own conversations and context live in its own database. SIWC plan usage does not provide access to native ChatGPT conversations or memories.
-- Select only models exposed through the authorised SIWC integration. Do not promise parity with every model or ChatGPT product feature.
-- No OpenAI API key or API-billed inference path is to be configured.
+- Select only models exposed through the authorised account's model catalogue. Do not promise parity with every model or ChatGPT product feature.
+- No OpenAI API key, credit purchases, API-billed inference path or paid fallback is to be configured.
 
 ### SIWC credentials and background execution
 - Use the official OAuth flow only. Never collect ChatGPT passwords or cookies.
-- Do not put SIWC authentication tokens in PostgreSQL, a managed cloud secret manager, source control, logs, or environment files in the public repository.
-- The current SIWC terms restrict persistent token storage to local storage under the user's control. OpenAI documents a separate self-hosted VM procedure; validate the exact VM ownership, credential location, transfer process, revocation/usage attribution limitations and current terms before using it.
-- Because background mail analysis and delegated tasks must originate from the user's own expressly authorised activity, obtain an explicit user consent during setup for each enabled category of background AI processing and make the control revocable.
-- If the intended cloud runtime cannot be shown to meet current SIWC requirements, do not send inference requests from it. Surface the blocker and seek an eligible route or a revised architecture; do not work around terms.
+- Never put SIWC tokens in PostgreSQL, Google Secret Manager, Cloud Run environment variables, source control, logs, browser storage, URLs or chat messages. Follow the OpenAI self-hosted-VM procedure: local Mac OAuth, secure credential transfer, and owner-only credential-file storage on the user-controlled VM's local filesystem.
+- Keep the VM's unique stable host ID and the Mac's host ID separate. The VM must own subsequent refreshes and atomically replace rotated tokens.
+- OpenAI's published VM guide warns that host-specific usage attribution and revocation for transferred sessions are not yet available; disclose this limitation.
+- Because background mail analysis and delegated tasks must originate from the user's own expressly authorised activity, obtain explicit user consent during setup for each enabled category of background AI processing and make the control revocable.
+- If the exact VM runtime, user control or local token storage cannot be shown to meet current SIWC requirements, do not send inference requests from it. Surface the blocker; do not work around terms.
 
 ### Cost controls
 - Additional AI/API spend is fixed at **₹0** by default. No API billing, credit use, automatic credit purchase, paid fallback model or paid upgrade.
