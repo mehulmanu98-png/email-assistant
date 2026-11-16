@@ -53,6 +53,10 @@ class SendApprovalIn(BaseModel):
     expected_updated_at: datetime
 
 
+class OutboundDraftIn(DraftIn):
+    account_id: int = Field(gt=0)
+
+
 class ReadStateIn(BaseModel):
     is_read: bool
 
