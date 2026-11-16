@@ -48,9 +48,12 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 - Initial import covers the last 90 days of Inbox. Sync is resumable in batches of up to 500 messages per run.
 - Read-state and Trash are only updated locally after provider confirmation.
 - Replies default to Reply All recipient handling where headers permit, allow edits to To/CC/BCC, lock From to the original account, and require a separate send approval.
+- New outbound messages require explicit sender-account selection; their drafts are stored in the app and require a separate final send approval.
 - Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
 - Forwarding uses a separate internal forward draft and explicit approval. It defaults to the original source account, sends outside the source thread, includes the original message text and optionally forwards original attachments within the 25 MB combined in-app limit. Provider acceptance is reported separately from final delivery.
 - Manual Sync Now commits a durable job to Neon and requests an immediate Cloud Run worker execution using the dashboard runtime service identity. The 15-minute Cloud Scheduler run remains a fallback for queued or interrupted work.
+- Full provider-thread retrieval is available on demand for iCloud and Gmail, including available original Sent messages; results are chronological and disclose provider-scan limitations.
+- Follow-ups can be created manually from the Follow-ups workspace or from a selected email, linked to the source message, assigned an owner and due/expected time, then edited, snoozed or completed.
 - The raw message is hidden until you choose **Show original email**.
 - An email thread can be linked to an app-managed Email Assistant conversation. Existing imported messages are backfilled once; new synced messages are appended once through a per-message deduplication ledger. Unlinking stops future appends but retains conversation history.
 - Gmail threads use the provider's native thread ID. iCloud threads use the root Message-ID from References/In-Reply-To where available; ambiguous older messages may need a manual source-thread check.
@@ -83,6 +86,7 @@ References:
 - The repository is public source code, not a public mailbox. Email data and credentials belong in Neon/Google Secret Manager, never in Git.
 - Keep Neon connection URIs, Apple app passwords, Google OAuth secrets, dashboard passwords, JWT secrets and the field key private.
 - Cloud Run is protected by the app's single-user login; use a strong unique password. The application requires HTTPS in production.
+- The app persists a failed-login lockout after five bad attempts for 15 minutes. Production state-changing browser requests must carry the exact configured Origin; Apple Shortcut device-token endpoints use separate device authentication.
 - The scheduler uses a separate service account with permission only to execute the Cloud Run worker job; the worker runtime identity can read the required Secret Manager secrets.
 - Do not expose the Neon database to unrestricted public access; use the pooled URL, require TLS and rotate credentials if exposed.
 - Monitor Neon compute/storage/network quotas and Google Cloud billing. Free limits can suspend or charge depending on the plan/service; they are not a universal zero-cost promise.
