@@ -172,6 +172,86 @@ def sync_gmail(db: Session, account: EmailAccount, limit: int = 500) -> int:
     db.commit()
     return imported
 
+MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
+
+def _gmail_attachment_parts(payload: dict) -> list[dict]:
+    found: list[dict] = []
+    def walk(part: dict):
+        filename = str(part.get("filename") or "")
+        body = part.get("body") or {}
+        if filename:
+            found.append({
+                "filename": filename[:255],
+                "mime_type": str(part.get("mimeType") or "application/octet-stream"),
+                "size": int(body.get("size") or 0),
+                "attachment_id": body.get("attachmentId"),
+                "data": body.get("data"),
+            })
+        for child in part.get("parts") or []:
+            walk(child)
+    walk(payload or {})
+    return found
+
+
+def list_gmail_attachments(db: Session, account: EmailAccount, provider_id: str) -> list[dict]:
+    message = gmail_request(db, account, "GET", "/messages/" + provider_id, params={"format": "full"})
+    parts = _gmail_attachment_parts(message.get("payload") or {})
+    result = []
+    for index, item in enumerate(parts):
+        size = item["size"]
+        if not size and item["data"]:
+            size = len(_decode_bytes(item["data"]))
+        mime_type = item["mime_type"]
+        result.append({
+            "index": index,
+            "filename": item["filename"],
+            "mime_type": mime_type,
+            "size": size,
+            "is_inline": False,
+            "can_preview": mime_type == "application/pdf" or mime_type.startswith("image/"),
+            "available": size <= MAX_ATTACHMENT_BYTES,
+        })
+    return result
+
+
+def _decode_bytes(data: str) -> bytes:
+    if not data:
+        return b""
+    try:
+        return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+    except Exception as exc:
+        raise RuntimeError("Google returned an unreadable attachment encoding.") from exc
+
+
+def get_gmail_attachment(db: Session, account: EmailAccount, provider_id: str, index: int) -> dict:
+    message = gmail_request(db, account, "GET", "/messages/" + provider_id, params={"format": "full"})
+    parts = _gmail_attachment_parts(message.get("payload") or {})
+    if index < 0 or index >= len(parts):
+        raise LookupError("Attachment not found.")
+    item = parts[index]
+    if item["size"] > MAX_ATTACHMENT_BYTES:
+        raise ValueError("This attachment exceeds the 25 MB in-app download limit.")
+    data = _decode_bytes(item["data"]) if item["data"] else b""
+    if not data and item["attachment_id"]:
+        attachment = gmail_request(
+            db, account, "GET",
+            "/messages/" + provider_id + "/attachments/" + str(item["attachment_id"])
+        )
+        data = _decode_bytes(attachment.get("data") or "")
+    if len(data) > MAX_ATTACHMENT_BYTES:
+        raise ValueError("This attachment exceeds the 25 MB in-app download limit.")
+    if item["size"] and len(data) != item["size"]:
+        raise RuntimeError("The downloaded attachment size did not match Gmail's metadata.")
+    return {
+        "filename": item["filename"],
+        "mime_type": item["mime_type"],
+        "size": len(data),
+        "is_inline": False,
+        "data": data,
+    }
+
+
 def set_gmail_read(db: Session, account: EmailAccount, provider_id: str, read: bool = True) -> bool:
     if read:
         result = gmail_request(db, account, "POST", "/messages/" + provider_id + "/modify",
