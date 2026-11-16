@@ -7,7 +7,8 @@ import uuid
 from app.config import settings
 from app.db import SessionLocal
 from app.main import app
-from app.models import User, EmailAccount, EmailMessage, ReplyDraft
+from app.models import User, EmailAccount, EmailMessage, ReplyDraft, AIConversation
+from app.conversation_sync import append_linked_email_messages, canonical_thread_key
 
 
 def login(client: TestClient) -> None:
@@ -183,3 +184,189 @@ def test_followup_edit_snooze_complete_and_remove_preserve_source_email():
         source_response = client.get(f"/api/messages/{source_id}")
         assert source_response.status_code == 200
         assert source_response.json()["body_text"] == "Please confirm dispatch."
+
+
+def test_email_thread_link_backfills_updates_once_and_preserves_history_on_unlink():
+    with TestClient(app) as client:
+        login(client)
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            assert user is not None
+            account = EmailAccount(
+                user_id=user.id, provider="gmail",
+                email=f"thread-{uuid.uuid4().hex}@example.com",
+                connection_status="connected"
+            )
+            db.add(account)
+            db.commit()
+            db.refresh(account)
+
+            conversation = AIConversation(user_id=user.id, title="Supplier thread", messages=[])
+            db.add(conversation)
+            db.commit()
+            db.refresh(conversation)
+
+            first = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="provider-msg-1", thread_key="gmail-thread-1",
+                sender="supplier@example.com", recipients=account.email,
+                subject="Dispatch plan", body_text="First update",
+            )
+            second = EmailMessage(
+                user_id=user.id, account_id=account.id,
+                provider_message_id="provider-msg-2", thread_key="gmail-thread-1",
+                sender="supplier@example.com", recipients=account.email,
+                subject="Re: Dispatch plan", body_text="Second update",
+            )
+            db.add_all([first, second])
+            db.commit()
+            db.refresh(first)
+            db.refresh(second)
+            account_id = account.id
+            conversation_id = conversation.id
+            first_id = first.id
+        finally:
+            db.close()
+
+        linked = client.post(f"/api/messages/{first_id}/conversation", json={
+            "conversation_id": conversation_id,
+            "auto_update": True,
+        })
+        assert linked.status_code == 200
+        assert linked.json()["appended_messages"] == 2
+        assert linked.json()["thread_message_count"] == 2
+
+        details = client.get(f"/api/conversations/{conversation_id}")
+        assert details.status_code == 200
+        email_items = [m for m in details.json()["messages"] if m.get("kind") == "email_context"]
+        assert len(email_items) == 2
+        assert all("untrusted sender-supplied content" in item["content"] for item in email_items)
+
+        repeated = client.post(f"/api/messages/{first_id}/conversation", json={
+            "conversation_id": conversation_id,
+            "auto_update": True,
+        })
+        assert repeated.status_code == 200
+        assert repeated.json()["appended_messages"] == 0
+        assert len(client.get(f"/api/conversations/{conversation_id}").json()["messages"]) == 2
+
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = db.get(EmailAccount, account_id)
+            third = EmailMessage(
+                user_id=user.id, account_id=account_id,
+                provider_message_id="provider-msg-3", thread_key="gmail-thread-1",
+                sender="supplier@example.com", recipients=account.email,
+                subject="Re: Dispatch plan", body_text="Third update",
+            )
+            db.add(third)
+            db.commit()
+        finally:
+            db.close()
+
+        db = SessionLocal()
+        try:
+            assert append_linked_email_messages(db, account_id) == 1
+            db.commit()
+            assert append_linked_email_messages(db, account_id) == 0
+            db.commit()
+        finally:
+            db.close()
+
+        after_sync = client.get(f"/api/conversations/{conversation_id}").json()["messages"]
+        assert len([m for m in after_sync if m.get("kind") == "email_context"]) == 3
+
+        unlinked = client.delete(f"/api/messages/{first_id}/conversation")
+        assert unlinked.status_code == 200
+        assert unlinked.json()["conversation_history_retained"] is True
+
+        db = SessionLocal()
+        try:
+            user = db.scalar(select(User).where(User.email == settings.bootstrap_email.lower()))
+            account = db.get(EmailAccount, account_id)
+            fourth = EmailMessage(
+                user_id=user.id, account_id=account_id,
+                provider_message_id="provider-msg-4", thread_key="gmail-thread-1",
+                sender="supplier@example.com", recipients=account.email,
+                subject="Re: Dispatch plan", body_text="Fourth update",
+            )
+            db.add(fourth)
+            db.commit()
+        finally:
+            db.close()
+
+        db = SessionLocal()
+        try:
+            assert append_linked_email_messages(db, account_id) == 0
+        finally:
+            db.close()
+
+        relinked = client.post(f"/api/messages/{first_id}/conversation", json={
+            "conversation_id": conversation_id,
+            "auto_update": True,
+        })
+        assert relinked.status_code == 200
+        assert relinked.json()["appended_messages"] == 1
+
+        final_messages = client.get(f"/api/conversations/{conversation_id}").json()["messages"]
+        assert len([m for m in final_messages if m.get("kind") == "email_context"]) == 4
+        assert sum("First update" in m["content"] for m in final_messages if m.get("kind") == "email_context") == 1
+
+        other_conversation = client.post("/api/conversations", json={"title": "Different destination"})
+        assert other_conversation.status_code == 200
+        conflict = client.post(f"/api/messages/{first_id}/conversation", json={
+            "conversation_id": other_conversation.json()["id"],
+            "auto_update": True,
+        })
+        assert conflict.status_code == 409
+
+
+def test_icloud_reference_header_resolves_to_stable_root_message_id():
+    from app.models import EmailAccount, EmailMessage
+    from app.conversation_sync import canonical_thread_key
+    from app.db import Base
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    db = factory()
+    try:
+        user = User(email=f"icloud-{uuid.uuid4().hex}@example.com", password_hash="unused")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        account = EmailAccount(
+            user_id=user.id, provider="icloud",
+            email=f"icloud-{uuid.uuid4().hex}@example.com",
+            connection_status="connected",
+        )
+        db.add(account)
+        db.commit()
+        db.refresh(account)
+        root = EmailMessage(
+            user_id=user.id, account_id=account.id,
+            provider_message_id="<root@example.com>",
+            thread_key="<root@example.com>",
+            sender="sender@example.com", subject="Original",
+        )
+        reply = EmailMessage(
+            user_id=user.id, account_id=account.id,
+            provider_message_id="<reply@example.com>",
+            thread_key="<root@example.com> <reply@example.com>",
+            sender="sender@example.com", subject="Reply",
+        )
+        db.add_all([root, reply])
+        db.commit()
+        db.refresh(account)
+        db.refresh(reply)
+        assert canonical_thread_key(db, account, reply) == "<root@example.com>"
+    finally:
+        db.close()
+        engine.dispose()
