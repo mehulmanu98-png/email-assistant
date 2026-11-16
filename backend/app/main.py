@@ -104,6 +104,8 @@ def health(db: Session = Depends(get_db)):
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_WINDOW = timedelta(minutes=15)
 LOGIN_LOCKOUT = timedelta(minutes=15)
+# Equal-cost dummy hash avoids making unknown email addresses much faster to reject.
+DUMMY_LOGIN_PASSWORD_HASH = hash_password(secrets.token_urlsafe(32))
 
 
 def _login_identifier_hash(email: str) -> str:
@@ -141,7 +143,14 @@ def login(data: LoginIn, response: Response, db: Session = Depends(get_db)):
         throttle.blocked_until = None
 
     user = db.scalar(select(User).where(User.email == data.email.lower()))
-    if not user or not verify_password(data.password, user.password_hash):
+    password_valid = verify_password(
+        data.password,
+        user.password_hash if user else DUMMY_LOGIN_PASSWORD_HASH,
+    )
+    if not user:
+        # Do not create durable throttle rows for arbitrary unregistered emails.
+        raise HTTPException(401, "Invalid email or password")
+    if not password_valid:
         if not throttle:
             throttle = LoginThrottle(
                 identifier_hash=identifier_hash,
