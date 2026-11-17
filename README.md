@@ -1,46 +1,38 @@
 # Email Assistant
 
-Private single-user dashboard for iCloud Mail and Gmail. It includes a React interface, FastAPI backend, Neon PostgreSQL storage, provider sync, reply drafts and a cloud-scheduled mailbox worker.
+Private single-user dashboard for iCloud Mail and Gmail. It includes a React interface, FastAPI backend, Neon PostgreSQL storage, provider sync, reply drafts and a scheduled mailbox worker. The strict-zero-cost deployment mode uses a local Mac dashboard/API plus GitHub Actions for scheduled mailbox sync.
 
-## Background architecture
+## Strict zero-cost operating mode (selected project direction)
 
-- **Neon PostgreSQL** stores accounts, encrypted provider credentials, messages, drafts, settings and sync jobs.
-- **Google Cloud Run** hosts the dashboard and API from one container. The dashboard can cold-start after idle time; scheduled mailbox jobs are independent of the dashboard.
-- **Google Cloud Run Jobs + Cloud Scheduler** wake the one-shot worker every 15 minutes. Each run checks the saved review slots, drains durable queued jobs, and recovers interrupted work; it does **not** sync every 15 minutes. The 15-minute cadence also allows bounded 5/10-minute retries and stale-job recovery. Cloud Scheduler uses `Asia/Kolkata` and a dedicated service account. It does not require the MacBook or a GitHub workflow to be active.
-- The worker reads the saved mailbox schedule and queues any due slots not yet processed that day; it also handles manually queued Sync Now jobs. A Neon-backed 20-minute singleton lease prevents overlapping Cloud Run Job executions. Interrupted jobs are requeued after the 25-minute stale-job threshold; both the lease and recovery are persisted in Neon.
-- Default mailbox sync times are **08:00, 12:00 and 17:00 Asia/Kolkata**. The in-app settings can change these times.
-- No proactive notifications are configured.
-- GitHub Actions is used for CI. An optional manual mailbox diagnostic workflow exists, but it is not the primary scheduler.
+Do **not** use `scripts/deploy-cloud-run.sh` for this mode. Cloud Run requires a billing account and cannot guarantee a ₹0 bill.
 
-## Deployment status
+- **Dashboard/API:** run locally on the Mac with Docker Compose using `bash scripts/setup-local.sh`. It is available at `http://localhost:8080` while the Mac and Docker Desktop are running.
+- **Database:** use the existing Neon Free project as the shared PostgreSQL database. The local dashboard and GitHub Actions worker must use the same pooled Neon URL and the same `FIELD_ENCRYPTION_KEY`.
+- **Scheduled mailbox sync:** the public GitHub repository's Actions workflow runs at 08:00, 12:00 and 17:00 Asia/Kolkata (02:30, 06:30 and 11:30 UTC). GitHub may delay scheduled workflows during busy periods, so these are target times, not exact-time guarantees. The workflow can also be started manually.
+- **Required GitHub Actions secrets:** `NEON_DATABASE_URL` (same pooled Neon URL used by the local app), `EMAIL_ASSISTANT_FIELD_KEY` (exact same value as local `FIELD_ENCRYPTION_KEY`), and optionally both `EMAIL_ASSISTANT_GOOGLE_CLIENT_ID` and `EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET` for Gmail.
+- **AI:** disabled. No OpenAI API key, API billing, paid fallback or automatic credit purchase.
+- **Important limitation:** scheduled mailbox sync can run while the Mac is off, but the dashboard, manual actions and local API are unavailable until the Mac is awake and Docker is running. Remote iPhone access is not included in this zero-cost local setup.
 
-Repository source and CI: https://github.com/mehulmanu98-png/email-assistant
+GitHub Actions scheduled runs on this repository's public standard runners; Neon Free has usage limits. Stay within the free allowances and check Neon usage. This setup avoids Cloud Run and other paid hosting, but no third-party free tier can promise permanent availability or unchanged terms.
 
-The Neon project `Email Assistant` exists on the free-tier organisation with a ready `production` branch and `neondb` database. A direct database inspection on 16 November 2026 found no application tables yet; the FastAPI startup routine creates them on the first successful application startup. The repository's deployment record does not show a completed Cloud Run deployment, and the GCP project/billing state has not been independently verified in this session. Check the Google Cloud console before assuming those setup steps are complete. The GitHub `NEON_DATABASE_URL` secret was previously recorded as saved; it is not used by the primary Cloud Run deployment path.
+### Zero-cost setup steps
 
-Cloud Run requires a Google Cloud billing account. Cloud Run has a monthly free usage allowance based on resource usage, and Cloud Scheduler includes three jobs per billing account free each month. This deployment uses one scheduler job. These allowances are not a guarantee of zero cost; review current pricing, create a billing budget alert and monitor actual usage. <https://cloud.google.com/run/pricing> <https://cloud.google.com/scheduler/pricing>
+1. Confirm the Neon project is on the Free plan and copy its **pooled** PostgreSQL connection URL privately.
+2. Clone the repository and run `bash scripts/setup-local.sh` from its root. Enter the Neon URL and choose the dashboard login. The script generates a local encryption key.
+3. In GitHub repository **Settings → Secrets and variables → Actions**, add `NEON_DATABASE_URL` with the same pooled URL and `EMAIL_ASSISTANT_FIELD_KEY` with the exact value of `FIELD_ENCRYPTION_KEY` from the local `.env` file. Do not paste either value into chat or commit them.
+4. If using Gmail, also add both Google OAuth secrets. iCloud-only use does not require them.
+5. Open **Actions → Scheduled mailbox sync → Run workflow** once to test the worker. Confirm a successful run and then check the dashboard at `http://localhost:8080`.
+6. Connect a non-critical iCloud mailbox and test import, read/unread, Trash, reply draft and explicit send approval.
 
-## Deploy
+The scheduled worker and local dashboard share Neon, so emails synced by GitHub Actions appear in the dashboard when the Mac is running. The local app also has a worker container for manual and catch-up processing while the Mac is awake.
 
-Prerequisites: your Neon project (already created), a Google Cloud project with billing enabled, the Google Cloud CLI, and OpenSSL. A browser-based Google Cloud Shell also works because it comes with the Cloud CLI.
+## Optional paid-cloud deployment (not selected)
 
-1. In Neon, make sure you have the **pooled** PostgreSQL connection URI available. Keep it private.
-2. Create a Google Cloud project, link a billing account and open Google Cloud Shell, or install the Google Cloud CLI locally and authenticate with `gcloud auth login`.
-3. Clone this repository in the terminal and enter its folder:
-   `git clone https://github.com/mehulmanu98-png/email-assistant.git && cd email-assistant`
-4. Run `bash scripts/deploy-cloud-run.sh`. It asks for the project ID, Neon connection URI, dashboard login email/password and optional Google OAuth Web client credentials. It generates random application secrets on first deployment and stores them in Google Secret Manager. On redeployment it preserves the existing dashboard bootstrap login, JWT signing key and mailbox-encryption key so saved provider credentials remain decryptable.
-5. The script deploys the dashboard/API and one-shot Cloud Run worker, tests the worker's Neon connection, grants the scheduler and dashboard runtime identities permission to invoke the worker, and creates one Cloud Scheduler job. The 15-minute cadence checks saved mailbox slots, due retries and stale jobs; actual scheduled email syncs still occur only at your saved times (default 08:00, 12:00 and 17:00 IST).
-6. Before reporting success, the script checks the public dashboard route and calls `/api/health` to verify the API can reach Neon. If that check fails, inspect Cloud Run logs and database connectivity rather than connecting a mailbox.
-7. The script prints the dashboard URL and Gmail OAuth callback URI. Add that exact callback URI to your Google OAuth Web application client. Gmail OAuth cannot connect until the matching Google OAuth client credentials are configured.
-8. If you left the Google OAuth fields blank on first deployment, create the Web OAuth client and redeploy with its ID/secret. The script preserves the Neon URL, dashboard login, JWT key and mailbox-encryption key on redeployment.
-9. Open the dashboard, sign in and connect a non-critical iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
-10. Check Cloud Scheduler job **email-assistant-mail-sync** and Cloud Run job **email-assistant-mail-worker** in Google Cloud Console. Confirm successful executions and messages appearing in the dashboard.
-
-The GitHub `NEON_DATABASE_URL` secret you saved earlier is not used by the primary Cloud Scheduler route; you may leave it there. The app's database URL is stored in Google Secret Manager for Cloud Run and the scheduled worker.
+The Cloud Run deployment script remains in the repository for a future change of direction. It requires a Google Cloud billing account and can incur charges beyond free allowances. Do not run it under the current strict ₹0 decision.
 
 ## Local development
 
-Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh` from the repository root and open http://localhost:8080. This is local testing only; closing the Mac stops the local containers. Local Compose uses its own PostgreSQL container unless you change `DATABASE_URL`.
+Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh` from the repository root and open http://localhost:8080. This setup uses the shared Neon database so scheduled GitHub Actions syncs and the local dashboard see the same messages. The local dashboard/API stop when the Mac is off; the GitHub scheduled worker can continue syncing.
 
 ## Mailbox behaviour
 
