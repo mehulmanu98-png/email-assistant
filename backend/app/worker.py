@@ -281,7 +281,7 @@ def schedule_due_syncs() -> int:
         user_rows = db.execute(
             select(EmailAccount.user_id, UserSettings.sync_times, UserSettings.timezone)
             .join(UserSettings, UserSettings.user_id == EmailAccount.user_id, isouter=True)
-            .where(EmailAccount.connection_status != "disconnected").distinct()
+            .where(EmailAccount.connection_status != "disconnected")
         ).all()
         grouped = {}
         for user_id, times, timezone_name in user_rows:
