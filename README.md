@@ -2,37 +2,28 @@
 
 Private single-user dashboard for iCloud Mail and Gmail. It includes a React interface, FastAPI backend, Neon PostgreSQL storage, provider sync, reply drafts and a scheduled mailbox worker. The strict-zero-cost deployment mode uses a local Mac dashboard/API plus GitHub Actions for scheduled mailbox sync.
 
-## Strict zero-cost operating mode (selected project direction)
+## Free cloud deployment (target: ₹0/month)
 
-Do **not** use `scripts/deploy-cloud-run.sh` for this mode. Cloud Run requires a billing account and cannot guarantee a ₹0 bill.
+The selected deployment target is a **Render Free Web Service** running the existing Docker image, with the existing Neon Free PostgreSQL database and GitHub Actions as the mailbox worker. This makes the dashboard available through a public HTTPS address from phones, tablets and computers without depending on the user's Mac being on.
 
-- **Dashboard/API:** run locally on the Mac with Docker Compose using `bash scripts/setup-local.sh`. It is available at `http://localhost:8080` while the Mac and Docker Desktop are running.
-- **Database:** use the existing Neon Free project as the shared PostgreSQL database. The local dashboard and GitHub Actions worker must use the same pooled Neon URL and the same `FIELD_ENCRYPTION_KEY`.
-- **Scheduled mailbox sync:** the public GitHub repository's Actions workflow runs at 08:00, 12:00 and 17:00 Asia/Kolkata (02:30, 06:30 and 11:30 UTC). GitHub may delay scheduled workflows during busy periods, so these are target times, not exact-time guarantees. The workflow can also be started manually.
-- **Required GitHub Actions secrets:** `NEON_DATABASE_URL` (same pooled Neon URL used by the local app), `EMAIL_ASSISTANT_FIELD_KEY` (exact same value as local `FIELD_ENCRYPTION_KEY`), and optionally both `EMAIL_ASSISTANT_GOOGLE_CLIENT_ID` and `EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET` for Gmail.
-- **AI:** disabled. No OpenAI API key, API billing, paid fallback or automatic credit purchase.
-- **Important limitation:** scheduled mailbox sync can run while the Mac is off, but the dashboard, manual actions and local API are unavailable until the Mac is awake and Docker is running. Remote iPhone access is not included in this zero-cost local setup.
+- **Dashboard/API:** Render Web Service on the Free plan, deployed from this repository using `render.yaml`. The frontend is served by FastAPI from the same origin. The free service may spin down after inactivity; the first visit/request can take time to wake it. It is not an always-on SLA.
+- **Database:** keep the existing Neon Free PostgreSQL project. Use its pooled connection URL. Do not create a new database or replace the existing encryption key.
+- **Mailbox worker:** GitHub Actions runs the one-shot worker every five minutes and can also be started manually. It checks the configured 08:00, 12:00 and 17:00 Asia/Kolkata sync slots, and drains queued manual sync jobs. GitHub scheduled runs can be delayed; five minutes is a target cadence, not a guarantee.
+- **AI:** disabled. No AI API key, paid fallback or automatic credit purchase.
+- **Email safety:** outgoing email continues to require explicit user confirmation; Reply All remains the default for replies.
+- **Mac requirement:** the Mac is needed only for optional local administration, not for the hosted dashboard or scheduled worker.
 
-GitHub Actions scheduled runs on this repository's public standard runners; Neon Free has usage limits. Stay within the free allowances and check Neon usage. This setup avoids Cloud Run and other paid hosting, but no third-party free tier can promise permanent availability or unchanged terms.
+### Deployment setup
 
-### Zero-cost setup steps
+1. In Render, create a Blueprint from this repository and select the **Free** plan defined in `render.yaml`. Do not upgrade the service or attach a paid instance.
+2. Enter the required environment values in Render privately: `DATABASE_URL` (the existing Neon pooled URL), `BOOTSTRAP_EMAIL`, and a strong unique `BOOTSTRAP_PASSWORD`. Render generates `JWT_SECRET` and `FIELD_ENCRYPTION_KEY` for the first deployment. If the app has already stored encrypted mailbox credentials in Neon, the field key must be the exact existing key; never replace it.
+3. In GitHub repository **Settings → Secrets and variables → Actions**, add `NEON_DATABASE_URL` with the same pooled Neon URL and `EMAIL_ASSISTANT_FIELD_KEY` with the exact same field key used by Render. Optionally add both `EMAIL_ASSISTANT_GOOGLE_CLIENT_ID` and `EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET` for Gmail OAuth.
+4. Set the GitHub Actions workflow secrets before relying on scheduled sync. Use **Actions → Scheduled mailbox sync → Run workflow** for a manual worker run.
+5. Test with a non-critical mailbox: login, initial 90-day import, read/unread, trash, draft, and explicit send approval.
 
-1. Confirm the Neon project is on the Free plan and copy its **pooled** PostgreSQL connection URL privately.
-2. Clone the repository and run `bash scripts/setup-local.sh` from its root. Enter the Neon URL and choose the dashboard login. The script generates a local encryption key.
-3. In GitHub repository **Settings → Secrets and variables → Actions**, add `NEON_DATABASE_URL` with the same pooled URL and `EMAIL_ASSISTANT_FIELD_KEY` with the exact value of `FIELD_ENCRYPTION_KEY` from the local `.env` file. Do not paste either value into chat or commit them.
-4. If using Gmail, also add both Google OAuth secrets. iCloud-only use does not require them.
-5. Open **Actions → Scheduled mailbox sync → Run workflow** once to test the worker. Confirm a successful run and then check the dashboard at `http://localhost:8080`.
-6. Connect a non-critical iCloud mailbox and test import, read/unread, Trash, reply draft and explicit send approval.
+**Important encryption rule:** the database URL and field-encryption key must match between Render and GitHub Actions. If an existing Neon database contains encrypted mailbox credentials, recover and reuse its original field key before deployment. Do not generate a replacement key for existing encrypted data.
 
-The scheduled worker and local dashboard share Neon, so emails synced by GitHub Actions appear in the dashboard when the Mac is running. The local app also has a worker container for manual and catch-up processing while the Mac is awake.
-
-## Optional paid-cloud deployment (not selected)
-
-The Cloud Run deployment script remains in the repository for a future change of direction. It requires a Google Cloud billing account and can incur charges beyond free allowances. Do not run it under the current strict ₹0 decision.
-
-## Local development
-
-Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh` from the repository root and open http://localhost:8080. This setup uses the shared Neon database so scheduled GitHub Actions syncs and the local dashboard see the same messages. The local dashboard/API stop when the Mac is off; the GitHub scheduled worker can continue syncing.
+**Free-tier limitations:** Render Free services can sleep and have resource/usage limits; Neon Free and GitHub Actions also have limits and terms that may change. This is a best-effort ₹0 configuration, not a promise of uninterrupted uptime. Do not add a payment method or upgrade a service unless the user explicitly approves. Do not deploy to Google Cloud Run under the current zero-spend decision; its deployment script remains for a future separately approved paid/billing-enabled setup.
 
 ## Mailbox behaviour
 
@@ -44,7 +35,7 @@ Requires Docker Desktop with Docker Compose v2. Run `bash scripts/setup-local.sh
 - New outbound messages require explicit sender-account selection; their drafts are stored in the app and require a separate final send approval.
 - Uncertain send outcomes are locked against blind retries; check the source account's Sent folder.
 - Forwarding uses a separate internal forward draft and explicit approval. It defaults to the original source account, sends outside the source thread, includes the original message text and optionally forwards original attachments within the 25 MB combined in-app limit. Provider acceptance is reported separately from final delivery.
-- Manual Sync Now commits a durable job to Neon and requests an immediate Cloud Run worker execution using the dashboard runtime service identity. The 15-minute Cloud Scheduler run remains a fallback for queued or interrupted work.
+- Manual Sync Now commits a durable job to Neon. GitHub Actions polls the durable queue on its five-minute worker cadence; a manual workflow run can also process queued work.
 - Full provider-thread retrieval is available on demand for iCloud and Gmail, including available original Sent messages; results are chronological and disclose provider-scan limitations.
 - Follow-ups can be created manually from the Follow-ups workspace or from a selected email, linked to the source message, assigned an owner and due/expected time, then edited, snoozed or completed.
 - The raw message is hidden until you choose **Show original email**.
@@ -80,7 +71,7 @@ References:
 - Keep Neon connection URIs, Apple app passwords, Google OAuth secrets, dashboard passwords, JWT secrets and the field key private.
 - Cloud Run is protected by the app's single-user login; use a strong unique password. The application requires HTTPS in production.
 - The app persists a failed-login lockout after five bad attempts for 15 minutes. Production state-changing browser requests must carry the exact configured Origin; Apple Shortcut device-token endpoints use separate device authentication.
-- The scheduler uses a separate service account with permission only to execute the Cloud Run worker job; the worker runtime identity can read the required Secret Manager secrets.
+- The GitHub Actions worker reads only the repository secrets required to connect to Neon and decrypt provider credentials. Keep repository access restricted to trusted collaborators.
 - Do not expose the Neon database to unrestricted public access; use the pooled URL, require TLS and rotate credentials if exposed.
 - Monitor Neon compute/storage/network quotas and Google Cloud billing. Free limits can suspend or charge depending on the plan/service; they are not a universal zero-cost promise.
 - GitHub Actions scheduled workflow is not required for production background processing. CI runs on pushes; the optional manual sync diagnostic is a fallback only.
