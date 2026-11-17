@@ -220,8 +220,7 @@ fi
 echo "Checking dashboard and database-backed API health..."
 HEALTH_OK=false
 for attempt in {1..12}; do
-  if HEALTH_JSON="$(curl -fsS "$SERVICE_URL_PUBLIC/api/health" 2>/dev/null)" && \\
-    printf '%s' "$HEALTH_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("status") == "ok" and d.get("notifications") is False else 1)' >/dev/null 2>&1; then
+  if HEALTH_JSON="$(curl -fsS "$SERVICE_URL_PUBLIC/api/health" 2>/dev/null)" && printf '%s' "$HEALTH_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("status") == "ok" and d.get("notifications") is False else 1)' >/dev/null 2>&1; then
     HEALTH_OK=true
     break
   fi
