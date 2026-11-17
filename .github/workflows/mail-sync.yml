@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     defaults:
       run:
@@ -32,7 +32,7 @@ jobs:
       AUTO_SYNC_TIMES: "08:00,12:00,17:00"
       MAX_MESSAGES_PER_SYNC: "500"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check required secrets
         id: secrets
         shell: bash
@@ -47,7 +47,7 @@ jobs:
             fi
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         if: steps.secrets.outputs.configured == 'true'
         with:
           python-version: "3.12"
