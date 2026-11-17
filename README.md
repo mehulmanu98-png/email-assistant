@@ -6,7 +6,7 @@ Private single-user dashboard for iCloud Mail and Gmail. It includes a React int
 
 - **Neon PostgreSQL** stores accounts, encrypted provider credentials, messages, drafts, settings and sync jobs.
 - **Google Cloud Run** hosts the dashboard and API from one container. The dashboard can cold-start after idle time; scheduled mailbox jobs are independent of the dashboard.
-- **Google Cloud Run Jobs + Cloud Scheduler** execute the one-shot worker every 15 minutes. Cloud Scheduler uses the `Asia/Kolkata` timezone and calls the Cloud Run Jobs API using a dedicated service account. It does not require the MacBook or a GitHub scheduled workflow to be active.
+- **Google Cloud Run Jobs + Cloud Scheduler** wake the one-shot worker every 15 minutes. Each run checks the saved review slots, drains durable queued jobs, and recovers interrupted work; it does **not** sync every 15 minutes. The 15-minute cadence also allows bounded 5/10-minute retries and stale-job recovery. Cloud Scheduler uses `Asia/Kolkata` and a dedicated service account. It does not require the MacBook or a GitHub workflow to be active.
 - The worker reads the saved mailbox schedule and queues any due slots not yet processed that day; it also handles manually queued Sync Now jobs. A Neon-backed 20-minute singleton lease prevents overlapping Cloud Run Job executions. Interrupted jobs are requeued after the 25-minute stale-job threshold; both the lease and recovery are persisted in Neon.
 - Default mailbox sync times are **08:00, 12:00 and 17:00 Asia/Kolkata**. The in-app settings can change these times.
 - No proactive notifications are configured.
@@ -29,11 +29,12 @@ Prerequisites: your Neon project (already created), a Google Cloud project with 
 3. Clone this repository in the terminal and enter its folder:
    `git clone https://github.com/mehulmanu98-png/email-assistant.git && cd email-assistant`
 4. Run `bash scripts/deploy-cloud-run.sh`. It asks for the project ID, Neon connection URI, dashboard login email/password and optional Google OAuth Web client credentials. It generates random application secrets on first deployment and stores them in Google Secret Manager. On redeployment it preserves the existing dashboard bootstrap login, JWT signing key and mailbox-encryption key so saved provider credentials remain decryptable.
-5. The script deploys the dashboard/API to Cloud Run, deploys a one-shot Cloud Run worker job, tests its Neon connection, grants the scheduler identity permission to invoke that job, and creates one Cloud Scheduler job that triggers every 15 minutes.
-6. The script prints the Cloud Run dashboard URL and Gmail OAuth callback URI. Add that exact callback URI to your Google OAuth Web application client. Gmail OAuth cannot connect until the matching Google OAuth client credentials are configured.
-7. If you left the Google OAuth fields blank on the first deployment, create the Web OAuth client after you have the callback URI, then run `bash scripts/deploy-cloud-run.sh` again and enter the new client ID/secret when prompted. The script preserves the existing Neon URL, dashboard login, JWT key and mailbox-encryption key on redeployment.
-8. Open the dashboard URL and sign in with the dashboard credentials. Connect a test iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
-8. Check Cloud Scheduler job **email-assistant-mail-sync** and Cloud Run job **email-assistant-mail-worker** in the Google Cloud console. Confirm successful executions and that messages appear in the dashboard.
+5. The script deploys the dashboard/API and one-shot Cloud Run worker, tests the worker's Neon connection, grants the scheduler and dashboard runtime identities permission to invoke the worker, and creates one Cloud Scheduler job. The 15-minute cadence checks saved mailbox slots, due retries and stale jobs; actual scheduled email syncs still occur only at your saved times (default 08:00, 12:00 and 17:00 IST).
+6. Before reporting success, the script checks the public dashboard route and calls `/api/health` to verify the API can reach Neon. If that check fails, inspect Cloud Run logs and database connectivity rather than connecting a mailbox.
+7. The script prints the dashboard URL and Gmail OAuth callback URI. Add that exact callback URI to your Google OAuth Web application client. Gmail OAuth cannot connect until the matching Google OAuth client credentials are configured.
+8. If you left the Google OAuth fields blank on first deployment, create the Web OAuth client and redeploy with its ID/secret. The script preserves the Neon URL, dashboard login, JWT key and mailbox-encryption key on redeployment.
+9. Open the dashboard, sign in and connect a non-critical iCloud mailbox using an Apple app-specific password, and/or approve Gmail through Google's OAuth screen.
+10. Check Cloud Scheduler job **email-assistant-mail-sync** and Cloud Run job **email-assistant-mail-worker** in Google Cloud Console. Confirm successful executions and messages appearing in the dashboard.
 
 The GitHub `NEON_DATABASE_URL` secret you saved earlier is not used by the primary Cloud Scheduler route; you may leave it there. The app's database URL is stored in Google Secret Manager for Cloud Run and the scheduled worker.
 

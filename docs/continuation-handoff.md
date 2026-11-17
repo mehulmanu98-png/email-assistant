@@ -45,6 +45,7 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - Neon-backed sync jobs, retry/backoff, stale-job recovery and singleton worker lease.
 - Cloud Run deployment script, one-shot Cloud Run Job and Cloud Scheduler setup.
 - Manual Sync Now and first account import commit durable sync jobs and request immediate Cloud Run worker execution using the dashboard runtime service identity; the 15-minute Scheduler trigger remains the fallback.
+- The 15-minute Cloud Scheduler cadence is intentionally a worker wake-up/recovery interval, not an email-review interval. The worker syncs only at the saved 08:00, 12:00 and 17:00 IST slots, drains queued manual work and performs bounded retry/stale-job recovery.
 - Follow-ups API plus the dashboard filters and controls: All, Action Required, Awaiting Response, overdue state, open linked source email, manual creation from the Follow-ups page or selected email, edit, snooze, mark complete and remove tracking item without changing the email.
 - Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
@@ -99,7 +100,7 @@ References:
 ### Google Cloud
 
 - The repository contains `scripts/deploy-cloud-run.sh` and describes the deployment path, but this session did not have access to inspect the Google Cloud project or verify a live deployment.
-- The script expects a Google Cloud project with an active billing account and enables Cloud Run, Cloud Build, Artifact Registry, Secret Manager and Cloud Scheduler. It creates runtime and scheduler service accounts, deploys the dashboard/API and one-shot worker, tests worker-to-Neon connectivity, then configures a 15-minute scheduler trigger in Asia/Kolkata.
+- The script expects a Google Cloud project with an active billing account and enables Cloud Run, Cloud Build, Artifact Registry, Secret Manager and Cloud Scheduler. It creates runtime and scheduler service accounts, deploys the dashboard/API and one-shot worker, tests worker-to-Neon connectivity, configures the 15-minute scheduler wake-up, and now performs dashboard/API smoke checks including a live database query through `/api/health` before reporting success.
 - Do not claim the application is deployed until the Cloud Run service, worker job, scheduler job and live mailbox tests are verified in the user's Google Cloud console.
 - Review the current Google Cloud and Neon usage and set a billing budget alert. Free-tier allowances are conditional limits, not a guarantee of zero cost.
 
