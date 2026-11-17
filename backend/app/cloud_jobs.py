@@ -1,8 +1,9 @@
-"""Trigger the durable Cloud Run mailbox worker from the dashboard runtime.
+"""Optional Cloud Run worker trigger.
 
-The API only starts the job; it does not perform mailbox sync inline. Jobs remain
-committed in Neon before this function is called, and Cloud Scheduler continues
-to provide a periodic recovery trigger.
+The free hosted deployment deliberately leaves Cloud Run unconfigured. Manual sync
+requests are durably queued in Neon and the GitHub Actions worker drains that queue
+on its scheduled cadence. This function returns False unless a Cloud Run deployment
+is explicitly configured in a separately approved environment.
 """
 from __future__ import annotations
 
