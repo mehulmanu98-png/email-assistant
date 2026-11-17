@@ -19,7 +19,7 @@ jobs:
       GOOGLE_CLIENT_ID: ${{ secrets.EMAIL_ASSISTANT_GOOGLE_CLIENT_ID }}
       GOOGLE_CLIENT_SECRET: ${{ secrets.EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET }}
       TIMEZONE: Asia/Kolkata
-      AUTO_SYNC_TIMES: "08:00,11:00,14:00,17:00"
+      AUTO_SYNC_TIMES: "08:00,12:00,17:00"
       MAX_MESSAGES_PER_SYNC: "500"
     steps:
       - uses: actions/checkout@v4
