@@ -69,7 +69,7 @@ The following non-AI features are implemented in the current source:
 - Original attachment listing, secure viewing and download from the source mailbox.
 - Separate forward drafts with optional original attachments and explicit send approval.
 - App-managed email-thread linking, one-time history backfill and append-on-sync deduplication.
-- Secure Apple Notes/Reminders command queue, one-time device enrolment, device polling and command-result receipts. A real Apple Shortcut still needs to be installed/enrolled and acceptance-tested on a device before native Notes or Reminders creation can be considered live.
+- Secure Apple Notes/Reminders command queue, one-time device enrolment, device polling and command-result receipts. Follow [the Apple Shortcut setup guide](docs/apple-shortcuts-setup.md) to enrol a device and build the polling Shortcut. A real Shortcut still needs to be installed/enrolled and acceptance-tested on a device before native Notes or Reminders creation can be considered live.
 - Each inbox email card has its own actions for View Original, Prepare Reply, Mark as Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question. The two AI actions explicitly report that commercial ChatGPT integration approval is pending; they do not produce canned or fabricated output.
 
 App-managed conversations and tasks are persisted, but they do not generate AI answers or execute delegated AI work yet.

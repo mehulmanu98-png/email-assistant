@@ -50,7 +50,7 @@ The uploaded extract specifies 08:00, 12:00 and 17:00 IST. The functional specif
 - Original attachment listing, source-provider view/download and safe MIME handling, with an integration test confirming attachment viewing does not mark the email read.
 - Separate Forward drafts, optional source attachments up to the configured limit, source-account locking, explicit approval and uncertain-send protection.
 - App-managed email-thread linking with one-time history backfill, per-message deduplication, automatic append on subsequent mailbox syncs, and unlink/relink history retention.
-- Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts.
+- Apple Notes/Reminders device enrolment and command queue, including idempotency, device polling/leases and completion receipts. The end-to-end device setup and polling procedure is documented in `docs/apple-shortcuts-setup.md`; actual Shortcut installation and live Note/Reminder acceptance are still pending.
 - Initial authentication hardening: persistent lockout after five failed attempts for 15 minutes, plus production Origin validation for browser state-changing requests; Apple Shortcut token routes retain separate device-token authentication.
 - Each inbox email card has individual action buttons. Provider-confirmed Mark as Read/Unread, Trash after confirmation, Prepare Reply, and app-only sender blocking are wired. The AI-only card actions show the pending commercial approval status without fabricating an answer.
 
@@ -118,7 +118,7 @@ The assistant should continue code, tests and documentation that do not require 
 1. Obtain written OpenAI commercial-integration approval and its supported remote-hosted token/usage architecture; until then, keep all AI actions blocked and do not add a paid API fallback.
 2. Complete Google Cloud deployment, confirm runtime service identity permissions and execute the initial Cloud Run worker against Neon.
 3. Connect a non-critical iCloud mailbox (and Gmail if required) and perform live acceptance of sync, full thread retrieval, read/unread, Trash, reply, forward and outbound send workflows.
-4. Create/install the private Apple Shortcut, enrol the Mac/iPhone, and verify native Note/Reminder creation and receipts end to end.
+4. Follow `docs/apple-shortcuts-setup.md` to create the private enrolment and polling Shortcuts, enrol the iPhone/Mac, and verify native Note/Reminder creation and result receipts end to end. Remember that an enrolled device must run the poll Shortcut; the cloud worker cannot wake the device.
 5. After written AI approval and a compliant laptop-off token/runtime architecture, implement current-message and whole-thread summaries, contextual reply drafts, Ask a Question, priority assessment, automatic follow-up extraction/update, attachment-content analysis and delegated task execution.
 6. Complete database backup/restore tests, independent security review, provider acceptance and public-source security/licence review before relying on critical business email.
 
