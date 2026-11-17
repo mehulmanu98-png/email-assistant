@@ -845,33 +845,15 @@ def send_outbound_draft(
         raise HTTPException(422, "Subject and message body must not be empty.")
     account = _owned_connected_account(db, user.id, draft.account_id)
 
-    # Record the one-way state before network I/O so repeated clicks cannot send twice.
-    draft.status = "sending"
-    db.commit()
-    try:
-        if account.provider == "icloud":
-            provider_id = send_icloud(
-                account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, None
-            )
-        else:
-            provider_id = send_gmail(
-                db, account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, None
-            )
-    except Exception as exc:
-        draft.status = "send_uncertain"
-        db.commit()
-        raise HTTPException(502, f"The provider send result could not be confirmed ({type(exc).__name__}). Check the selected account's Sent folder before retrying.")
-
-    draft.status = "sent"
-    draft.provider_sent_id = provider_id
+    # Explicit approval queues the immutable reviewed draft for the GitHub-hosted
+    # mailbox worker. This keeps provider SMTP off free web hosts that block SMTP.
+    draft.status = "queued"
     db.commit()
     return {
-        "status": "sent",
-        "provider_accepted": True,
+        "status": "queued",
+        "provider_accepted": False,
         "delivery_confirmed": False,
-        "note": "The selected source provider accepted the email; final delivery is not confirmed.",
+        "note": "Your approved email is queued for secure background delivery. Check the draft status for the provider result.",
     }
 
 
@@ -973,31 +955,17 @@ def send_draft(
     ))
     if not account or account.connection_status == "disconnected":
         raise HTTPException(409, "Reconnect the original source account. The From account cannot be changed.")
-    # Persist a one-way state before network I/O so duplicate clicks cannot send twice.
-    draft.status = "sending"
+    # Explicit approval queues the immutable reviewed draft for the GitHub-hosted
+    # mailbox worker. This keeps provider SMTP off free web hosts that block SMTP.
+    draft.status = "queued"
     db.commit()
-    try:
-        if account.provider == "icloud":
-            provider_id = send_icloud(
-                account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, source
-            )
-        elif account.provider == "gmail":
-            provider_id = send_gmail(
-                db, account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, source
-            )
-        else:
-            raise RuntimeError("Unsupported provider.")
-    except Exception as exc:
-        draft.status = "send_uncertain"
-        db.commit()
-        raise HTTPException(502, f"The provider send result could not be confirmed ({type(exc).__name__}). Check Sent before retrying.")
-    draft.status = "sent"
-    draft.provider_sent_id = provider_id
-    db.commit()
-    return {"status": "sent", "provider_accepted": True, "delivery_confirmed": False,
-            "note": "The source provider accepted the message; final delivery is not confirmed."}
+    return {
+        "status": "queued",
+        "provider_accepted": False,
+        "delivery_confirmed": False,
+        "note": "Your approved reply is queued for secure background delivery. Check the draft status for the provider result.",
+    }
+
 
 def forward_draft_out(draft: ForwardDraft, account: EmailAccount | None = None):
     return {
@@ -1120,34 +1088,17 @@ def send_forward_draft(
     ))
     if not account or account.connection_status == "disconnected":
         raise HTTPException(409, "Reconnect the original source account. The default forward From account is locked to it.")
-    draft.status = "sending"
-    db.commit()
-    try:
-        if account.provider == "icloud":
-            provider_id = send_icloud_forward(
-                account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, source,
-                draft.include_attachments,
-            )
-        elif account.provider == "gmail":
-            provider_id = send_gmail_forward(
-                db, account, list(draft.to_json or []), list(draft.cc_json or []),
-                list(draft.bcc_json or []), draft.subject, draft.body, source,
-                draft.include_attachments,
-            )
-        else:
-            raise RuntimeError("Unsupported provider.")
-    except Exception as exc:
-        draft.status = "send_uncertain"
-        db.commit()
-        raise HTTPException(502, f"The forward result could not be confirmed ({type(exc).__name__}). Check Sent before retrying.")
-    draft.status = "sent"
-    draft.provider_sent_id = provider_id
+    # Explicit approval queues the reviewed forward. The background worker sends
+    # it from a runner that supports the provider's SMTP requirements.
+    draft.status = "queued"
     db.commit()
     return {
-        "status": "sent", "provider_accepted": True, "delivery_confirmed": False,
-        "note": "The provider accepted the forwarded email; final delivery is not confirmed."
+        "status": "queued",
+        "provider_accepted": False,
+        "delivery_confirmed": False,
+        "note": "Your approved forward is queued for secure background delivery. Check the draft status for the provider result.",
     }
+
 
 
 def _token_digest(value: str) -> str:
