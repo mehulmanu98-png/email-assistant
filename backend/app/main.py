@@ -796,7 +796,7 @@ def save_outbound_draft(
     ))
     if not draft:
         raise HTTPException(404, "Outbound draft not found")
-    if draft.status in {"sent", "sending", "send_uncertain"}:
+    if draft.status in {"sent", "queued", "sending", "send_uncertain"}:
         raise HTTPException(409, "This draft can no longer be edited because sending has started or completed.")
     account = _owned_connected_account(db, user.id, data.account_id)
     draft.account_id = account.id
@@ -824,8 +824,8 @@ def send_outbound_draft(
         raise HTTPException(404, "Outbound draft not found")
     if not approval.confirm_send:
         raise HTTPException(400, "Explicit final approval is required.")
-    if draft.status == "sent":
-        raise HTTPException(409, "This email has already been accepted by the provider.")
+    if draft.status in {"sent", "queued"}:
+        raise HTTPException(409, "This email has already been sent or queued for delivery.")
     if draft.status in {"sending", "send_uncertain"}:
         raise HTTPException(409, "The previous send result is uncertain. Check the selected account's Sent folder before retrying.")
 
@@ -902,7 +902,7 @@ def save_draft(draft_id: int, data: DraftIn, user: User = Depends(current_user),
     ))
     if not draft:
         raise HTTPException(404, "Draft not found")
-    if draft.status in {"sent", "sending", "send_uncertain"}:
+    if draft.status in {"sent", "queued", "sending", "send_uncertain"}:
         raise HTTPException(409, "This draft can no longer be edited because sending has started or completed.")
     draft.to_json = [str(v) for v in data.to]
     draft.cc_json = [str(v) for v in data.cc]
@@ -928,8 +928,8 @@ def send_draft(
         raise HTTPException(404, "Draft not found")
     if not approval.confirm_send:
         raise HTTPException(400, "Explicit send confirmation is required.")
-    if draft.status == "sent":
-        raise HTTPException(409, "This draft has already been accepted by the provider.")
+    if draft.status in {"sent", "queued"}:
+        raise HTTPException(409, "This draft has already been sent or queued for delivery.")
     if draft.status in {"sending", "send_uncertain"}:
         raise HTTPException(409, "The previous send result is uncertain. Check the source account's Sent folder before retrying.")
     actual = draft.updated_at
@@ -1030,7 +1030,7 @@ def save_forward_draft(
     ))
     if not draft:
         raise HTTPException(404, "Forward draft not found")
-    if draft.status in {"sent", "sending", "send_uncertain"}:
+    if draft.status in {"sent", "queued", "sending", "send_uncertain"}:
         raise HTTPException(409, "This forward can no longer be edited because sending has started or completed.")
     draft.to_json = [str(v) for v in data.to]
     draft.cc_json = [str(v) for v in data.cc]
@@ -1058,8 +1058,8 @@ def send_forward_draft(
         raise HTTPException(404, "Forward draft not found")
     if not approval.confirm_send:
         raise HTTPException(400, "Explicit final approval is required.")
-    if draft.status == "sent":
-        raise HTTPException(409, "This forward has already been accepted by the provider.")
+    if draft.status in {"sent", "queued"}:
+        raise HTTPException(409, "This forward has already been sent or queued for delivery.")
     if draft.status in {"sending", "send_uncertain"}:
         raise HTTPException(409, "The previous send result is uncertain. Check the source account's Sent folder before retrying.")
     actual = draft.updated_at
