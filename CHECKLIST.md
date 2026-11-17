@@ -26,10 +26,10 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | Bounded worker retries and stale-job recovery | Built | Retries at 5/10-minute intervals; requeues interrupted jobs. |
 | Singleton background worker lease | Built | Neon-backed 20-minute lease prevents overlapping Cloud Run Job runs and expires after interrupted execution. |
 | Sync job visibility in dashboard | Built | Recent job activity shown under Accounts & Settings. |
-| Cloud Run dashboard/API deployment | Prepared | Deployment script is ready. No completed Cloud Run deployment is recorded in the repository; confirm GCP project and billing state in the console. |
+| Cloud Run dashboard/API deployment | Prepared | Deployment script includes a public dashboard smoke check and a database-backed `/api/health` check after provisioning. No completed deployment is recorded in the repository; confirm GCP project and billing state in the console. |
 | Cloud Run one-shot worker job | Prepared | Uses same container image and Neon/field-key secrets. Runtime service identity and scheduler identity each receive job-scoped run invoker permission. |
 | Immediate manual worker trigger | Built in main | Sync Now and first account sync request the Cloud Run worker immediately after the queue commit; the 15-minute scheduler remains the fallback. Live cloud IAM acceptance pending. |
-| Cloud Scheduler background trigger | Prepared | One job every 15 minutes in Asia/Kolkata; can run with laptop off. |
+| Cloud Scheduler background trigger | Prepared | One job wakes the worker every 15 minutes in Asia/Kolkata to check the three configured daily sync slots, due retries and interrupted jobs. It does not perform an email sync every 15 minutes; can run with laptop off. |
 | Neon database | Created | Free-tier Email Assistant project and production branch are ready. Direct inspection on 16 Nov 2026 found no application tables; first successful app startup should initialise them. |
 | Per-email card actions | Built in main | Each email card has its own View Original, Prepare Reply, Read/Unread, Delete, Block Sender, Summarise Entire Thread and Ask a Question controls. AI actions report the approval blocker without returning fabricated output. |
 | Provider-confirmed read and unread | Built in main | Both directions update iCloud/Gmail first; local state changes only after provider confirmation. |
