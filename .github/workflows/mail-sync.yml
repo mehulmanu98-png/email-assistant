@@ -1,6 +1,9 @@
-name: Optional manual mailbox sync diagnostic
+name: Scheduled mailbox sync
 
 on:
+  schedule:
+    # GitHub cron is UTC; runs may be delayed by GitHub during busy periods.
+    - cron: "30 2,6,11 * * *" # 08:00, 12:00 and 17:00 Asia/Kolkata
   workflow_dispatch:
 
 permissions:
