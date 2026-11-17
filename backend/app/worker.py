@@ -9,9 +9,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from .db import SessionLocal, init_db
-from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease
-from .providers import sync_icloud
-from .gmail import sync_gmail
+from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease, ReplyDraft, ForwardDraft, OutboundDraft, EmailMessage
+from .providers import sync_icloud, send_icloud, send_icloud_forward
+from .gmail import sync_gmail, send_gmail, send_gmail_forward
 from .conversation_sync import append_linked_email_messages
 from .config import settings
 
@@ -145,6 +145,114 @@ def run_once() -> bool:
         db.close()
 
 
+
+def run_send_once() -> bool:
+    """Send one user-approved draft from the background runner.
+
+    A draft is changed to 'sending' and committed before network I/O. If the
+    provider result is ambiguous, it is marked 'send_uncertain' and is never
+    automatically retried, preventing duplicate outgoing email.
+    """
+    db = SessionLocal()
+    try:
+        candidates = [
+            db.scalar(select(ReplyDraft).where(ReplyDraft.status == "queued")
+                      .order_by(ReplyDraft.id).limit(1).with_for_update(skip_locked=True)),
+            db.scalar(select(ForwardDraft).where(ForwardDraft.status == "queued")
+                      .order_by(ForwardDraft.id).limit(1).with_for_update(skip_locked=True)),
+            db.scalar(select(OutboundDraft).where(OutboundDraft.status == "queued")
+                      .order_by(OutboundDraft.id).limit(1).with_for_update(skip_locked=True)),
+        ]
+        draft = next((item for item in candidates if item is not None), None)
+        if draft is None:
+            return False
+        draft.status = "sending"
+        db.commit()
+
+        if isinstance(draft, OutboundDraft):
+            account = db.scalar(select(EmailAccount).where(
+                EmailAccount.id == draft.account_id,
+                EmailAccount.user_id == draft.user_id,
+                EmailAccount.connection_status != "disconnected",
+            ))
+            source = None
+        else:
+            source = db.scalar(select(EmailMessage).where(
+                EmailMessage.id == draft.message_id,
+                EmailMessage.user_id == draft.user_id,
+            ))
+            account = db.get(EmailAccount, source.account_id) if source else None
+            if account and (account.user_id != draft.user_id or account.connection_status == "disconnected"):
+                account = None
+
+        if not account:
+            draft.status = "failed"
+            db.commit()
+            log.warning("Approved send draft %s could not be sent because its source account is unavailable.", draft.id)
+            return True
+
+        try:
+            if isinstance(draft, ForwardDraft):
+                if not source:
+                    raise RuntimeError("Original message unavailable.")
+                if account.provider == "icloud":
+                    provider_id = send_icloud_forward(
+                        account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, source,
+                        draft.include_attachments,
+                    )
+                elif account.provider == "gmail":
+                    provider_id = send_gmail_forward(
+                        db, account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, source,
+                        draft.include_attachments,
+                    )
+                else:
+                    raise RuntimeError("Unsupported provider.")
+            elif isinstance(draft, ReplyDraft):
+                if not source:
+                    raise RuntimeError("Original message unavailable.")
+                if account.provider == "icloud":
+                    provider_id = send_icloud(
+                        account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, source,
+                    )
+                elif account.provider == "gmail":
+                    provider_id = send_gmail(
+                        db, account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, source,
+                    )
+                else:
+                    raise RuntimeError("Unsupported provider.")
+            else:
+                if account.provider == "icloud":
+                    provider_id = send_icloud(
+                        account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, None,
+                    )
+                elif account.provider == "gmail":
+                    provider_id = send_gmail(
+                        db, account, list(draft.to_json or []), list(draft.cc_json or []),
+                        list(draft.bcc_json or []), draft.subject, draft.body, None,
+                    )
+                else:
+                    raise RuntimeError("Unsupported provider.")
+        except Exception as exc:
+            draft.status = "send_uncertain"
+            db.commit()
+            log.warning("Approved send draft %s has an uncertain provider result (%s); automatic retry disabled.",
+                        draft.id, type(exc).__name__)
+            return True
+
+        draft.status = "sent"
+        draft.provider_sent_id = provider_id
+        db.commit()
+        log.info("Approved send draft %s was accepted by its provider.", draft.id)
+        return True
+    finally:
+        db.close()
+
+
 def recover_stale_jobs(stale_minutes: int = WORKER_LEASE_MINUTES + 5) -> int:
     """Requeue jobs left running when an ephemeral runner was interrupted."""
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_minutes)
@@ -222,9 +330,13 @@ def run_scheduled_batch(max_jobs: int = 100) -> int:
         if added:
             log.info("Queued %s scheduled sync job(s).", added)
         processed = 0
-        while processed < max_jobs and run_once():
-            processed += 1
-        log.info("Background runner finished; processed %s job(s).", processed)
+        while processed < max_jobs:
+            did_send = run_send_once()
+            did_sync = run_once()
+            if not did_send and not did_sync:
+                break
+            processed += int(did_send) + int(did_sync)
+        log.info("Background runner finished; processed %s mailbox/send job(s).", processed)
         return processed
     finally:
         release_worker_lease(lease_token)
