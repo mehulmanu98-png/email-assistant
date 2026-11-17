@@ -348,7 +348,9 @@ def main() -> None:
     while True:
         try:
             schedule_due_syncs()
-            if not run_once():
+            did_send = run_send_once()
+            did_sync = run_once()
+            if not did_send and not did_sync:
                 time.sleep(15)
         except Exception:
             log.exception("Worker cycle error")
