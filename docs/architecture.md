@@ -96,8 +96,8 @@ Do not store raw mail-provider credentials or tokens in ordinary database rows. 
 
 ### Durable job queue and background worker
 - Use a durable queue backed by PostgreSQL or a managed queue service.
-- A cloud scheduler enqueues account sync jobs at the configured times (default 08:00, 12:00, 17:00 Asia/Kolkata).
-- Manual Sync Now enqueues the same idempotent sync pipeline.
+- Cloud Scheduler wakes the one-shot worker every 15 minutes in Asia/Kolkata. The worker enqueues account sync jobs only when the user's configured daily slots are due (default 08:00, 12:00, 17:00); the polling cadence is for due-slot detection, retries and interrupted-job recovery, not a 15-minute email review interval.
+- Manual Sync Now first commits the same durable sync job and then immediately requests a Cloud Run Job execution. The 15-minute scheduler remains the recovery path if an immediate trigger is missed or a worker was interrupted.
 - Gmail change notifications can enqueue incremental sync jobs; iCloud may use IMAP IDLE if supported by the chosen server/connection, with polling fallback.
 - Worker processes jobs independently of browser/ChatGPT session state.
 - Delegated AI tasks are persisted and scheduled as jobs, not held in an in-memory request or browser session.
