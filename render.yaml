@@ -1,0 +1,40 @@
+services:
+  - type: web
+    name: email-assistant-mehul
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: AI_PROVIDER
+        value: disabled
+      - key: TIMEZONE
+        value: Asia/Kolkata
+      - key: INITIAL_SYNC_DAYS
+        value: "90"
+      - key: MAX_MESSAGES_PER_SYNC
+        value: "500"
+      - key: FRONTEND_ORIGIN
+        value: https://email-assistant-mehul.onrender.com
+      - key: GOOGLE_REDIRECT_URI
+        value: https://email-assistant-mehul.onrender.com/api/oauth/gmail/callback
+      - key: DATABASE_URL
+        sync: false
+      - key: BOOTSTRAP_EMAIL
+        sync: false
+      - key: BOOTSTRAP_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FIELD_ENCRYPTION_KEY
+        generateValue: true
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
