@@ -70,7 +70,7 @@ References:
 
 - The repository is public source code, not a public mailbox. Email data and credentials belong in Neon/Google Secret Manager, never in Git.
 - Keep Neon connection URIs, Apple app passwords, Google OAuth secrets, dashboard passwords, JWT secrets and the field key private.
-- Cloud Run is protected by the app's single-user login; use a strong unique password. The application requires HTTPS in production.
+- The hosted dashboard is protected by the app's single-user login; use a strong unique password. The application requires HTTPS in production.
 - The app persists a failed-login lockout after five bad attempts for 15 minutes. Production state-changing browser requests must carry the exact configured Origin; Apple Shortcut device-token endpoints use separate device authentication.
 - The GitHub Actions worker reads only the repository secrets required to connect to Neon and decrypt provider credentials. Keep repository access restricted to trusted collaborators.
 - Do not expose the Neon database to unrestricted public access; use the pooled URL, require TLS and rotate credentials if exposed.
