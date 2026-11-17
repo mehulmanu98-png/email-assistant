@@ -512,19 +512,17 @@ def test_forward_draft_uses_source_account_separate_thread_and_explicit_approval
             "expected_updated_at": saved.json()["updated_at"],
         })
         assert sent.status_code == 200
-        assert sent.json()["provider_accepted"] is True
+        assert sent.json()["status"] == "queued"
+        assert sent.json()["provider_accepted"] is False
         assert sent.json()["delivery_confirmed"] is False
-        assert calls == [(
-            source_account, ["recipient@example.com"], "Fwd: Original contract",
-            "Please review this.", "gmail-original-thread", True
-        )]
+        assert calls == []
 
         db = SessionLocal()
         try:
             stored = db.get(ForwardDraft, forward["id"])
             assert stored is not None
-            assert stored.status == "sent"
-            assert stored.provider_sent_id == "gmail-forwarded-message-id"
+            assert stored.status == "queued"
+            assert stored.provider_sent_id is None
         finally:
             db.close()
 
@@ -866,17 +864,10 @@ def test_new_outbound_draft_requires_explicit_from_account_and_final_approval(mo
             "expected_updated_at": draft["updated_at"],
         })
         assert sent.status_code == 200
-        assert sent.json()["provider_accepted"] is True
+        assert sent.json()["status"] == "queued"
+        assert sent.json()["provider_accepted"] is False
         assert sent.json()["delivery_confirmed"] is False
-        assert sent_calls == [{
-            "account": second_email,
-            "to": ["recipient@example.com"],
-            "cc": ["copy@example.com"],
-            "bcc": [],
-            "subject": "New proposal",
-            "body": "Please review the proposal.",
-            "source": None,
-        }]
+        assert sent_calls == []
 
         retry = client.post(f"/api/outbound-drafts/{draft['id']}/send", json={
             "confirm_send": True,
