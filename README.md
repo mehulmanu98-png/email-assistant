@@ -1,6 +1,6 @@
 # Email Assistant
 
-Private single-user dashboard for iCloud Mail and Gmail. It includes a React interface, FastAPI backend, Neon PostgreSQL storage, provider sync, reply drafts and a scheduled mailbox worker. The strict-zero-cost deployment mode uses a local Mac dashboard/API plus GitHub Actions for scheduled mailbox sync.
+Private single-user cloud dashboard for iCloud Mail and Gmail. It includes a React interface, FastAPI backend, Neon PostgreSQL storage, provider sync, reply drafts and a scheduled mailbox worker. The target deployment is a free hosted web service plus GitHub Actions for background mailbox processing.
 
 ## Free cloud deployment (target: ₹0/month)
 
