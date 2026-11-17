@@ -14,6 +14,8 @@ if [[ ! -f Dockerfile || ! -d backend || ! -d frontend ]]; then
 fi
 command -v gcloud >/dev/null 2>&1 || { echo "Install Google Cloud CLI first."; exit 1; }
 command -v openssl >/dev/null 2>&1 || { echo "OpenSSL is required."; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "curl is required for the post-deployment health check."; exit 1; }
+command -v python3 >/dev/null 2>&1 || { echo "Python 3 is required for the post-deployment health check."; exit 1; }
 gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q . || {
   echo "Sign in first with: gcloud auth login"; exit 1;
 }
@@ -213,12 +215,31 @@ else
   gcloud scheduler jobs create http "$SCHEDULER_JOB" "${SCHEDULER_FLAGS[@]}"
 fi
 
+# Verify the public dashboard route and the database-backed API health endpoint.
+# Cloud Run deployment readiness alone does not prove that the app can reach Neon.
+echo "Checking dashboard and database-backed API health..."
+HEALTH_OK=false
+for attempt in {1..12}; do
+  if HEALTH_JSON="$(curl -fsS "$SERVICE_URL_PUBLIC/api/health" 2>/dev/null)" && \\
+    printf '%s' "$HEALTH_JSON" | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("status") == "ok" and d.get("notifications") is False else 1)' >/dev/null 2>&1; then
+    HEALTH_OK=true
+    break
+  fi
+  sleep 5
+done
+if [[ "$HEALTH_OK" != "true" ]]; then
+  echo "Dashboard/API health check failed. Inspect Cloud Run service logs and Neon connectivity before using the app."
+  exit 1
+fi
+curl -fsS "$SERVICE_URL_PUBLIC/" -o /dev/null
+echo "Dashboard route and Neon-backed API health check passed."
+
 echo
 echo "Dashboard URL: $SERVICE_URL_PUBLIC"
 echo "Gmail OAuth redirect URI: $GOOGLE_REDIRECT_URI"
 echo "Add that redirect URI to the Google OAuth Web client to enable Gmail."
-echo "Cloud Scheduler now starts the Cloud Run worker every 15 minutes in Asia/Kolkata."
-echo "The worker performs actual mailbox syncs at the saved times (default 08:00, 12:00 and 17:00 Asia/Kolkata). Manual Sync Now triggers the worker immediately; the 15-minute scheduler remains the fallback."
+echo "Cloud Scheduler wakes the Cloud Run worker every 15 minutes in Asia/Kolkata to check due slots, retry jobs and recover interrupted work."
+echo "The worker performs mailbox syncs only at the saved times (default 08:00, 12:00 and 17:00 Asia/Kolkata), or immediately when you choose Sync Now."
 echo "The GitHub NEON_DATABASE_URL secret you added earlier is not needed for the primary scheduler; you may leave it there."
 echo "Review Cloud Billing and set a budget alert; free-tier limits are not a hard spending cap."
 unset NEON_DATABASE_URL BOOTSTRAP_PASSWORD GOOGLE_CLIENT_SECRET JWT_SECRET FIELD_ENCRYPTION_KEY
