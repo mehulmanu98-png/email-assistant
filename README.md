@@ -10,7 +10,7 @@ The selected deployment target is a **Render Free Web Service** running the exis
 - **Database:** keep the existing Neon Free PostgreSQL project. Use its pooled connection URL. Do not create a new database or replace the existing encryption key.
 - **Mailbox worker:** GitHub Actions runs the one-shot worker every five minutes and can also be started manually. It checks the configured 08:00, 12:00 and 17:00 Asia/Kolkata sync slots, and drains queued manual sync jobs. GitHub scheduled runs can be delayed; five minutes is a target cadence, not a guarantee.
 - **AI:** disabled. No AI API key, paid fallback or automatic credit purchase.
-- **Email safety:** outgoing email continues to require explicit user confirmation; Reply All remains the default for replies.
+- **Email safety:** outgoing email requires explicit user confirmation. Approval places the reviewed draft in a durable queue; the background worker sends it once and reports provider acceptance. Ambiguous provider outcomes are marked `send_uncertain` and are never automatically retried. Reply All remains the default for replies.
 - **Mac requirement:** the Mac is needed only for optional local administration, not for the hosted dashboard or scheduled worker.
 
 ### Deployment setup
@@ -19,7 +19,8 @@ The selected deployment target is a **Render Free Web Service** running the exis
 2. Enter the required environment values in Render privately: `DATABASE_URL` (the existing Neon pooled URL), `BOOTSTRAP_EMAIL`, and a strong unique `BOOTSTRAP_PASSWORD`. Render generates `JWT_SECRET` and `FIELD_ENCRYPTION_KEY` for the first deployment. If the app has already stored encrypted mailbox credentials in Neon, the field key must be the exact existing key; never replace it.
 3. In GitHub repository **Settings → Secrets and variables → Actions**, add `NEON_DATABASE_URL` with the same pooled Neon URL and `EMAIL_ASSISTANT_FIELD_KEY` with the exact same field key used by Render. Optionally add both `EMAIL_ASSISTANT_GOOGLE_CLIENT_ID` and `EMAIL_ASSISTANT_GOOGLE_CLIENT_SECRET` for Gmail OAuth.
 4. Set the GitHub Actions workflow secrets before relying on scheduled sync. Use **Actions → Scheduled mailbox sync → Run workflow** for a manual worker run.
-5. Test with a non-critical mailbox: login, initial 90-day import, read/unread, trash, draft, and explicit send approval.
+5. Add the GitHub Actions secrets `NEON_DATABASE_URL` and `EMAIL_ASSISTANT_FIELD_KEY` using the exact same Neon URL and field-encryption key as Render. Optionally add both Gmail OAuth secrets.
+6. Test with a non-critical mailbox: login, initial 90-day import, read/unread, trash, draft, explicit send approval, and the queued-to-sent status transition.
 
 **Important encryption rule:** the database URL and field-encryption key must match between Render and GitHub Actions. If an existing Neon database contains encrypted mailbox credentials, recover and reuse its original field key before deployment. Do not generate a replacement key for existing encrypted data.
 
