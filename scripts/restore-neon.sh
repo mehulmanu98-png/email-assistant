@@ -37,7 +37,7 @@ user, password, dbname = unquote(u.username or ""), unquote(u.password or ""), u
 def esc(value): return value.replace("\\", "\\\\").replace(":", "\\:")
 with open(passfile, "w", encoding="utf-8") as f:
     if password:
-        f.write(":".join(esc(x) for x in (host, str(port), dbname, user, password)) + "\\n")
+        f.write(":".join(esc(x) for x in (host, str(port), dbname, user, password)) + "\n")
 os.chmod(passfile, 0o600)
 query = parse_qs(u.query)
 params = []
