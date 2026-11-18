@@ -25,15 +25,30 @@ trap 'rm -rf "$tmp"' EXIT
 raw="$tmp/email-assistant.dump"
 echo "Decrypting backup. Enter its passphrase when prompted."
 openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in "$backup" -out "$raw"
-pg_url="$(python3 - "$DATABASE_URL" <<'PY'
-import sys
-from sqlalchemy.engine import make_url
-url = make_url(sys.argv[1])
-if not url.drivername.startswith("postgresql"):
+pg_url="$(python3 - "$DATABASE_URL" "$tmp/pgpass" <<'PY'
+import os, sys
+from urllib.parse import urlsplit, unquote, parse_qs
+raw, passfile = sys.argv[1], sys.argv[2]
+u = urlsplit(raw)
+if not u.scheme.startswith("postgresql") or not u.hostname or not u.path:
     raise SystemExit("DATABASE_URL must be a PostgreSQL URL")
-print(url.set(drivername="postgresql").render_as_string(hide_password=False))
+host, port = u.hostname, u.port or 5432
+user, password, dbname = unquote(u.username or ""), unquote(u.password or ""), unquote(u.path.lstrip("/"))
+def esc(value): return value.replace("\\\\", "\\\\\\\\").replace(":", "\\\\:")
+with open(passfile, "w", encoding="utf-8") as f:
+    if password:
+        f.write(":".join(esc(x) for x in (host, str(port), dbname, user, password)) + "\\n")
+os.chmod(passfile, 0o600)
+query = parse_qs(u.query)
+params = []
+for key in ("sslmode", "connect_timeout", "application_name"):
+    if query.get(key): params.append(key + "=" + query[key][0])
+authority = (user + "@" if user else "") + host + ":" + str(port)
+return_url = "postgresql://" + authority + "/" + dbname + (("?" + "&".join(params)) if params else "")
+print(return_url)
 PY
 )"
+export PGPASSFILE="$tmp/pgpass"
 pg_restore --no-owner --no-acl --exit-on-error --dbname "$pg_url" "$raw"
 unset pg_url
 echo "Restore completed. Verify the app health endpoint and mailbox counts before switching production traffic."
