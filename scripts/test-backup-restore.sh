@@ -10,7 +10,7 @@ cat > "$tmp/bin/pg_dump" <<'SH'
 set -Eeuo pipefail
 [[ -f "$PGPASSFILE" ]]
 [[ "$(stat -c '%a' "$PGPASSFILE")" == "600" ]]
-grep -Fq 'host.example:5432:neondb:user:p@ss\\:word' "$PGPASSFILE"
+grep -Fq 'host.example:5432:neondb:user:p@ss\:word' "$PGPASSFILE"
 [[ "$*" != *'p@ss:word'* ]]
 out=""
 while (($#)); do
@@ -23,7 +23,7 @@ cat > "$tmp/bin/pg_restore" <<'SH'
 set -Eeuo pipefail
 [[ -f "$PGPASSFILE" ]]
 [[ "$(stat -c '%a' "$PGPASSFILE")" == "600" ]]
-grep -Fq 'host.example:5432:neondb:user:p@ss\\:word' "$PGPASSFILE"
+grep -Fq 'host.example:5432:neondb:user:p@ss\:word' "$PGPASSFILE"
 [[ "$*" != *'p@ss:word'* ]]
 SH
 cat > "$tmp/bin/openssl" <<'SH'
