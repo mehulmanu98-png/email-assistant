@@ -29,4 +29,5 @@ jobs:
         working-directory: frontend
       - run: bash -n scripts/setup-local.sh scripts/deploy-cloud-run.sh scripts/backup-neon.sh scripts/restore-neon.sh
       - run: bash scripts/test-backup-restore.sh
+      - run: python3 -m py_compile scripts/upload-backup-google-drive.py
       - run: docker build -t email-assistant-cloud-run .
