@@ -34,7 +34,7 @@ if not u.scheme.startswith("postgresql") or not u.hostname or not u.path:
     raise SystemExit("DATABASE_URL must be a PostgreSQL URL")
 host, port = u.hostname, u.port or 5432
 user, password, dbname = unquote(u.username or ""), unquote(u.password or ""), unquote(u.path.lstrip("/"))
-def esc(value): return value.replace("\\\\", "\\\\\\\\").replace(":", "\\\\:")
+def esc(value): return value.replace("\\", "\\\\").replace(":", "\\:")
 with open(passfile, "w", encoding="utf-8") as f:
     if password:
         f.write(":".join(esc(x) for x in (host, str(port), dbname, user, password)) + "\\n")
