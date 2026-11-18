@@ -84,3 +84,65 @@ def test_icloud_original_attachment_metadata_and_bytes_are_read_only(monkeypatch
     downloaded = providers.get_icloud_attachment(account, "icloud-uidv-123-1", 0)
     assert downloaded["data"] == b"%PDF-1.7 test content"
     assert downloaded["filename"] == "invoice.pdf"
+
+
+def test_icloud_read_state_writes_and_verifies_seen_flag(monkeypatch):
+    from app import providers
+    from app.models import EmailAccount
+
+    class FakeReadIMAP:
+        def __init__(self):
+            self.calls = []
+        def select(self, mailbox, readonly=True):
+            assert mailbox == "INBOX"
+            assert readonly is False
+            return "OK", [b"1"]
+        def uid(self, *args):
+            self.calls.append(args)
+            if args[0] == "STORE":
+                return "OK", [b"stored"]
+            if args[0] == "FETCH":
+                return "OK", [(b"1 (FLAGS (\\Seen))",)]
+            raise AssertionError(args)
+        def logout(self):
+            return "BYE"
+
+    fake = FakeReadIMAP()
+    monkeypatch.setattr(providers, "_connect", lambda account: (fake, "unused"))
+    monkeypatch.setattr(providers, "_find_icloud_uid", lambda client, message_id: b"123")
+    account = EmailAccount(
+        id=1, user_id=1, provider="icloud", email="owner@example.com",
+        encrypted_secret="unused", connection_status="connected"
+    )
+
+    assert providers.set_icloud_read(account, "<mail@example.com>", True) is True
+    assert fake.calls == [
+        ("STORE", b"123", "+FLAGS.SILENT", "(\\Seen)"),
+        ("FETCH", b"123", "(FLAGS)"),
+    ]
+
+
+def test_icloud_read_state_fails_when_seen_flag_is_not_confirmed(monkeypatch):
+    import pytest
+    from app import providers
+    from app.models import EmailAccount
+
+    class FakeReadIMAP:
+        def select(self, mailbox, readonly=True):
+            return "OK", [b"1"]
+        def uid(self, *args):
+            if args[0] == "STORE":
+                return "OK", [b"stored"]
+            return "OK", [(b"1 (FLAGS ())",)]
+        def logout(self):
+            return "BYE"
+
+    monkeypatch.setattr(providers, "_connect", lambda account: (FakeReadIMAP(), "unused"))
+    monkeypatch.setattr(providers, "_find_icloud_uid", lambda client, message_id: b"123")
+    account = EmailAccount(
+        id=1, user_id=1, provider="icloud", email="owner@example.com",
+        encrypted_secret="unused", connection_status="connected"
+    )
+
+    with pytest.raises(RuntimeError, match="different read state"):
+        providers.set_icloud_read(account, "<mail@example.com>", True)
