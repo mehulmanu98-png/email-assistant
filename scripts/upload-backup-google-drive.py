@@ -41,10 +41,17 @@ def upload(path):
         body,{**auth,"Content-Type":"multipart/related; boundary="+boundary}))
     print("Uploaded %s (%s bytes)"%(result["name"],result.get("size","unknown")))
 for path in sorted(files): upload(path)
-# Retain the newest 16 encrypted backup files; checksum sidecars are kept with their backup.
+# Retain the newest 16 encrypted backups, deleting each checksum sidecar with its dump.
 query=urllib.parse.urlencode({"q":"'"+folder_id+"' in parents and trashed=false and name contains '.dump.enc'",
     "pageSize":100,"orderBy":"createdTime desc","fields":"files(id,name,createdTime)"})
 listing=json.loads(request("https://www.googleapis.com/drive/v3/files?"+query,None,auth))
-for old in listing.get("files",[])[16:]:
+backups=[x for x in listing.get("files",[]) if x["name"].endswith(".dump.enc")]
+for old in backups[16:]:
     request("https://www.googleapis.com/drive/v3/files/"+old["id"],None,auth,"DELETE")
-    print("Pruned old backup: "+old["name"])
+    sidecar_name=old["name"]+".sha256"
+    side_query=urllib.parse.urlencode({"q":"'"+folder_id+"' in parents and trashed=false and name='"+sidecar_name+"'",
+        "pageSize":10,"fields":"files(id,name)"})
+    sidecars=json.loads(request("https://www.googleapis.com/drive/v3/files?"+side_query,None,auth))
+    for sidecar in sidecars.get("files",[]):
+        request("https://www.googleapis.com/drive/v3/files/"+sidecar["id"],None,auth,"DELETE")
+    print("Pruned old backup and checksum: "+old["name"])
