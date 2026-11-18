@@ -54,8 +54,13 @@ pg_dump --format=custom --no-owner --no-acl --file "$raw" "$pg_url"
 unset pg_url
 if [[ ! -s "$raw" ]]; then echo "ERROR: pg_dump produced an empty file." >&2; exit 1; fi
 
-echo "Encrypting backup. Enter a strong backup passphrase when prompted."
-openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$raw" -out "$out"
+if [[ -n "${BACKUP_PASSPHRASE:-}" ]]; then
+  echo "Encrypting backup using the configured secret."
+  printf '%s' "$BACKUP_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass stdin -in "$raw" -out "$out"
+else
+  echo "Encrypting backup. Enter a strong backup passphrase when prompted."
+  openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -in "$raw" -out "$out"
+fi
 (
   cd "$BACKUP_DIR"
   sha256sum "$(basename "$out")" > "$(basename "$out").sha256"
