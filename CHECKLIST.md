@@ -36,11 +36,12 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 | No notifications | Built | No proactive notification delivery in current implementation. |
 | AI summaries/replies/task execution | Blocked pending approval | ChatGPT Go can be eligible in participating commercial apps, but this app has no commercial SIWC approval. Official open-source DevKit is noncommercial and is not used for business email processing. No API/credits fallback. |
 | Attachments | Partially built | Original attachments can be listed, viewed and downloaded from the provider. AI extraction/analysis and Office-format previews are not implemented. |
-| Apple Notes/Reminders | Queue and device APIs built; Shortcut acceptance pending | Device enrolment, command queue, polling, idempotency and result receipts are implemented. A real Shortcut still needs setup and live testing on an enrolled Mac/iPhone. |
+| Apple Notes/Reminders | Queue and device APIs built; Shortcut runbook added; live acceptance pending | Device enrolment, command queue, polling, leases, idempotency and result receipts are implemented. `docs/apple-shortcuts-setup.md` now gives the enrollment and queue-runner recipe. A private Shortcut must still be created/run on an enrolled Mac/iPhone and verified with a real Note and Reminder. |
 | OpenAI commercial SIWC approval | Pending | Owner must request approval; do not embed the noncommercial DevKit for business use. |
 | Live provider acceptance test | Pending | Must test with non-critical mailbox. |
 | Initial authentication security controls | Built | Persistent five-failure/15-minute login lockout and production Origin validation are covered by automated tests. |
-| Production audit and backups/restore | Pending | Independent security review, backup/restore procedure and live deployment hardening remain necessary before relying on critical business email. |
+| Encrypted database backup tooling | Built; live backup/restore drill pending | `scripts/backup-neon.sh` creates an encrypted custom-format dump and checksum; `scripts/restore-neon.sh` restores to a fresh target only after explicit confirmation. `docs/backup-restore-security.md` documents the zero-new-service-cost runbook. A real off-device backup and non-production restore drill are still owner-side acceptance tasks. |
+| Production audit and backups/restore | Partially complete | Security runbook and encrypted backup/restore scripts are in Git; Render/Neon settings and app security controls are documented. Independent security review, off-device copy, restore drill and live provider acceptance remain outstanding.
 
 ## Deployment acceptance
 
@@ -54,3 +55,12 @@ Status as of the latest code commit. CI passing does not prove live provider or 
 8. Review Google Cloud billing and Neon usage after initial operation. Free allowances are limits, not an assurance of zero cost.
 
 No live deployment or mailbox access is claimed until account/credential setup and real-provider tests succeed.
+
+
+## Additional completion notes (18 November 2026)
+
+- Added the private Apple Shortcuts enrollment/queue-runner guide at `docs/apple-shortcuts-setup.md`; the UI's existing setup-guide link now resolves to a real file.
+- Added encrypted logical backup and guarded restore scripts. The scripts use a temporary permission-restricted `.pgpass` file so the database password is not passed as a process argument; the backup passphrase is prompted interactively.
+- CI now runs `bash -n` against both backup/restore scripts. A passing shell syntax check does not prove a live backup/restore works.
+- Neon production database was inspected read-only: database `neondb`, PostgreSQL 18.7, current size approximately 9.0 MiB. This is a point-in-time size check, not a backup.
+- Render service is configured on the Free plan. No Google Cloud resources or paid services were created.
