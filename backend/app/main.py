@@ -651,7 +651,10 @@ def _confirm_provider_read_state(row: EmailMessage, db: Session, is_read: bool):
         if not confirmed:
             raise RuntimeError("Provider did not confirm the read-state change.")
     except Exception as exc:
-        raise HTTPException(502, f"Provider could not confirm the read-state change ({type(exc).__name__}).")
+        # Surface a bounded provider-stage diagnostic to the authenticated owner;
+        # never log credentials or raw message content.
+        reason = str(exc).replace("\\n", " ").replace("\\r", " ")[:180] if isinstance(exc, RuntimeError) else "Provider operation failed."
+        raise HTTPException(502, f"Provider could not confirm the read-state change ({type(exc).__name__}: {reason})")
     row.is_read = is_read
     db.commit()
     return {"is_read": is_read, "provider_sync": "confirmed"}
