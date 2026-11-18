@@ -1,0 +1,42 @@
+name: Encrypted Neon backup to Google Drive
+
+on:
+  schedule:
+    - cron: "30 2 * * 0" # 08:00 IST every Sunday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Create encrypted database backup
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          BACKUP_DIR: ${{ runner.temp }}/email-assistant-backups
+        run: |
+          test -n "$DATABASE_URL"
+          test -n "$BACKUP_PASSPHRASE"
+          bash scripts/backup-neon.sh
+      - name: Upload encrypted backup to Google Drive
+        env:
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          BACKUP_DIR: ${{ runner.temp }}/email-assistant-backups
+        run: |
+          test -n "$GOOGLE_CLIENT_ID"
+          test -n "$GOOGLE_CLIENT_SECRET"
+          test -n "$GOOGLE_REFRESH_TOKEN"
+          test -n "$GOOGLE_DRIVE_FOLDER_ID"
+          python3 scripts/upload-backup-google-drive.py
