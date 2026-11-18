@@ -28,4 +28,5 @@ jobs:
       - run: npm run build
         working-directory: frontend
       - run: bash -n scripts/setup-local.sh scripts/deploy-cloud-run.sh scripts/backup-neon.sh scripts/restore-neon.sh
+      - run: bash scripts/test-backup-restore.sh
       - run: docker build -t email-assistant-cloud-run .
