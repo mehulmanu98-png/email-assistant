@@ -47,5 +47,5 @@ export BACKUP_DIR="$tmp/backups"
 bash "$ROOT/scripts/backup-neon.sh" </dev/null
 backup="$(find "$BACKUP_DIR" -name '*.dump.enc' -print -quit)"
 [[ -n "$backup" && -s "$backup" && -s "$backup.sha256" ]]
-printf 'RESTORE\n' | bash "$ROOT/scripts/restore-neon.sh" "$backup" </dev/null
+printf 'RESTORE\n' | bash "$ROOT/scripts/restore-neon.sh" "$backup"
 echo "Backup/restore script harness passed."
