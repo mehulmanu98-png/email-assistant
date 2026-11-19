@@ -267,6 +267,16 @@ def set_gmail_read(db: Session, account: EmailAccount, provider_id: str, read: b
                                json_body={"addLabelIds": ["UNREAD"]})
     return ("UNREAD" not in result.get("labelIds", [])) == read
 
+def set_gmail_starred(db: Session, account: EmailAccount, provider_id: str, starred: bool = True) -> bool:
+    if starred:
+        result = gmail_request(db, account, "POST", "/messages/" + provider_id + "/modify",
+                               json_body={"addLabelIds": ["STARRED"]})
+    else:
+        result = gmail_request(db, account, "POST", "/messages/" + provider_id + "/modify",
+                               json_body={"removeLabelIds": ["STARRED"]})
+    return ("STARRED" in result.get("labelIds", [])) == starred
+
+
 def trash_gmail(db: Session, account: EmailAccount, provider_id: str) -> bool:
     data = gmail_request(db, account, "POST", "/messages/" + provider_id + "/trash")
     return bool(data.get("id") == provider_id)
