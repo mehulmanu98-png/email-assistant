@@ -139,3 +139,17 @@
 .followup-create-modal textarea{border:1px solid #e2e6eb;background:#fff;padding:10px;border-radius:8px;outline:none;font-size:12px;width:100%;resize:vertical}
 .followup-create-modal .section-head{padding:0 0 8px}
 .followup-create-modal .section-head p{font-size:10px;color:#8c95a0;line-height:1.5;margin-top:5px}
+
+
+/* Inbox navigation and quiet message-list controls. */
+.inbox-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:0 14px 12px;border-bottom:1px solid #edf0f3}
+.inbox-tabs button{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 5px;border-radius:7px;background:#f7f8fa;color:#697586;font-size:10px;font-weight:700}
+.inbox-tabs button.chosen{background:#eaf0f7;color:#293a55}
+.inbox-tabs span{font-size:9px;color:#8793a2}
+.message-row.unread{background:#fbfcff}
+.message-row.unread .row-top b,.message-row.unread>strong{color:#1e2b3e;font-weight:800}
+.message-row.unread .row-top b:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#5476a2;margin:0 7px 1px 0}
+.compact-list-actions{display:flex;align-items:center;gap:5px;padding:0 12px 10px}
+.compact-list-actions .button{width:auto;flex:1;min-width:0;padding:6px 5px;font-size:9px}
+.unread-indicator{font-size:8px;font-weight:800;letter-spacing:.06em;color:#48688f;background:#edf3fa;border-radius:12px;padding:5px 7px;white-space:nowrap}
+@media(max-width:700px){.inbox-tabs{padding-left:10px;padding-right:10px}.compact-list-actions{padding:0 9px 9px}.compact-list-actions .button{font-size:8px}}
