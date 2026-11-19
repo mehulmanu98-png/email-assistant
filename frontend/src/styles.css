@@ -179,3 +179,14 @@
 .star-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;border-radius:7px;background:#f7f8fa;color:#9aa4b2}
 .star-toggle.starred{color:#3478d4;background:#edf4ff}
 .star-toggle:hover{background:#e8eef7}
+
+
+/* Responsive, readable rendering for original email content and thread messages. */
+.original{width:100%;max-width:100%;min-width:0}
+.original pre,.thread-message pre{font-family:Arial,Helvetica,sans-serif;font-size:clamp(14px,0.88vw + 9px,16px);line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;word-break:normal;max-width:100%;color:#303b49}
+.original pre{margin:12px 0 0}
+.thread-message pre{font-size:clamp(13px,0.65vw + 9px,15px)}
+.detail-pane{min-width:0}
+.draft-ai-note{display:block;color:#7b8795;font-size:11px;line-height:1.5}
+@media(max-width:900px){.original pre,.thread-message pre{font-size:14px;line-height:1.65}}
+@media(max-width:600px){.original pre,.thread-message pre{font-size:14px;line-height:1.6}.detail-pane{padding:16px}}
