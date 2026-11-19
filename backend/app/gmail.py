@@ -338,7 +338,7 @@ def send_gmail_forward(
 
 
 def send_gmail(db: Session, account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
-               subject: str, body: str, source_message: StoredMessage | None = None) -> str:
+               subject: str, body: str, source_message: StoredMessage | None = None, attachments: list[dict] | None = None) -> str:
     message = MIMEEmailMessage()
     message["From"] = account.email
     message["To"] = ", ".join(to)
@@ -358,6 +358,10 @@ def send_gmail(db: Session, account: EmailAccount, to: list[str], cc: list[str],
             message["In-Reply-To"] = headers["message-id"]
             message["References"] = (headers.get("references", "") + " " + headers["message-id"]).strip()
     message.set_content(body)
+    for item in attachments or []:
+        raw = base64.b64decode(item.get("data_base64", ""), validate=True)
+        mime = str(item.get("mime_type") or "application/octet-stream").split("/", 1)
+        message.add_attachment(raw, maintype=mime[0], subtype=mime[1] if len(mime)>1 else "octet-stream", filename=str(item.get("filename") or "attachment"))
     recipients = list(dict.fromkeys(to + cc + bcc))
     if not recipients:
         raise RuntimeError("No recipients were supplied.")
