@@ -884,11 +884,32 @@ def list_outbound_drafts(user: User = Depends(current_user), db: Session = Depen
     return output
 
 
+def _validate_outbound_attachments(items: list[dict]) -> list[dict]:
+    if len(items) > 10:
+        raise HTTPException(422, "Attach no more than 10 files.")
+    total = 0
+    cleaned = []
+    for item in items:
+        filename = str(item.get("filename") or "attachment").replace("/", "_").replace("\\\\", "_")[:240]
+        mime_type = str(item.get("mime_type") or "application/octet-stream")[:160]
+        encoded = str(item.get("data_base64") or "")
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except Exception:
+            raise HTTPException(422, "An attachment could not be read. Please remove it and attach it again.")
+        total += len(raw)
+        if total > 20 * 1024 * 1024:
+            raise HTTPException(413, "Attachments are limited to 20 MB total.")
+        cleaned.append({"filename": filename, "mime_type": mime_type, "data_base64": base64.b64encode(raw).decode("ascii")})
+    return cleaned
+
+
 @app.post("/api/outbound-drafts")
 def create_outbound_draft(
     data: OutboundDraftIn, user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
     account = _owned_connected_account(db, user.id, data.account_id)
+    safe_attachments = _validate_outbound_attachments(data.attachments)
     draft = OutboundDraft(
         user_id=user.id,
         account_id=account.id,
@@ -897,7 +918,7 @@ def create_outbound_draft(
         bcc_json=[str(value) for value in data.bcc],
         subject=data.subject,
         body=data.body,
-        attachments_json=data.attachments,
+        attachments_json=safe_attachments,
         status="draft",
     )
     db.add(draft)
@@ -920,13 +941,14 @@ def save_outbound_draft(
     if draft.status in {"sent", "queued", "sending", "send_uncertain"}:
         raise HTTPException(409, "This draft can no longer be edited because sending has started or completed.")
     account = _owned_connected_account(db, user.id, data.account_id)
+    safe_attachments = _validate_outbound_attachments(data.attachments)
     draft.account_id = account.id
     draft.to_json = [str(value) for value in data.to]
     draft.cc_json = [str(value) for value in data.cc]
     draft.bcc_json = [str(value) for value in data.bcc]
     draft.subject = data.subject
     draft.body = data.body
-    draft.attachments_json = data.attachments
+    draft.attachments_json = safe_attachments
     draft.status = "draft"
     db.commit()
     db.refresh(draft)
