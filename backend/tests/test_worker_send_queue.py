@@ -50,7 +50,7 @@ def test_approved_outbound_draft_is_sent_once_by_worker(monkeypatch):
     engine, factory, draft_id = _worker_db(monkeypatch)
     sent = []
 
-    def fake_send(account, to, cc, bcc, subject, body, source):
+    def fake_send(account, to, cc, bcc, subject, body, source, attachments=None):
         sent.append((account.email, to, subject, body))
         return "<provider-message-id>"
 
