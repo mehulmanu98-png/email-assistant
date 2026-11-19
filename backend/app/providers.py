@@ -212,7 +212,7 @@ def set_icloud_read(account: EmailAccount, message_id: str, read: bool = True) -
                     if flags_end < 0:
                         continue
                     flags = lowered[flags_start:flags_end + 1]
-                    confirmed = b"\\\\seen" in flags
+                    confirmed = b"\\seen" in flags
                     break
                 if confirmed is read:
                     return confirmed
