@@ -101,6 +101,17 @@ def startup():
             db.commit()
     finally:
         db.close()
+    # Resume durable provider actions left queued by a prior process restart.
+    recovery_db = SessionLocal()
+    try:
+        pending_ids = recovery_db.scalars(
+            select(EmailActionJob.id).where(EmailActionJob.status.in_(["queued", "running"]))
+        ).all()
+    finally:
+        recovery_db.close()
+    import threading
+    for pending_id in pending_ids:
+        threading.Thread(target=_run_email_action_job, args=(pending_id,), daemon=True).start()
 
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)):
@@ -746,6 +757,20 @@ def delete_message(message_id: int, background_tasks: BackgroundTasks, user: Use
     job = _enqueue_email_action(db, row, "trash")
     background_tasks.add_task(_run_email_action_job, job.id)
     return {"trashed": True, "provider_sync": "queued", "action_id": job.id}
+
+
+@app.get("/api/email-actions/{action_id}")
+def get_email_action_status(action_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    job = db.scalar(select(EmailActionJob).where(
+        EmailActionJob.id == action_id, EmailActionJob.user_id == user.id
+    ))
+    if not job:
+        raise HTTPException(404, "Action not found")
+    return {
+        "id": job.id, "action": job.action, "status": job.status,
+        "attempt_count": job.attempt_count, "last_error": job.last_error,
+        "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+    }
 
 
 @app.post("/api/messages/{message_id}/block")
