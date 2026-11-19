@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .db import get_db, init_db, SessionLocal
 from .models import (
-    User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
+    User, EmailAccount, EmailMessage, EmailActionJob, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
     AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, LoginThrottle, AppleDevice,
     AppleDeviceEnrollment, AppleDeviceCommand, utcnow
 )
@@ -704,7 +704,7 @@ def mark_read(message_id: int, background_tasks: BackgroundTasks, user: User = D
 
 @app.post("/api/messages/{message_id}/read-state")
 def update_read_state(
-    message_id: int, data: ReadStateIn,
+    message_id: int, data: ReadStateIn, background_tasks: BackgroundTasks,
     user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
     row = db.scalar(select(EmailMessage).where(
