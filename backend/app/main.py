@@ -712,6 +712,13 @@ def _run_email_action_job(job_id: int):
             db.close()
 
 
+def _queue_provider_read_state(background_tasks: BackgroundTasks, row: EmailMessage, db: Session, is_read: bool):
+    row.is_read = is_read
+    job = _enqueue_email_action(db, row, "read", is_read)
+    background_tasks.add_task(_run_email_action_job, job.id)
+    return {"is_read": is_read, "provider_sync": "queued", "action_id": job.id}
+
+
 def _enqueue_email_action(db: Session, row: EmailMessage, action: str, desired_read: bool | None = None):
     job = EmailActionJob(
         user_id=row.user_id, message_id=row.id, action=action,
