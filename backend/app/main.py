@@ -9,7 +9,7 @@ from email.utils import getaddresses
 from urllib.parse import urlencode, quote
 
 import httpx
-from fastapi import FastAPI, Depends, HTTPException, Response, Request, Header
+from fastapi import FastAPI, Depends, HTTPException, Response, Request, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .db import get_db, init_db
+from .db import get_db, init_db, SessionLocal
 from .models import (
     User, EmailAccount, EmailMessage, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
     AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, LoginThrottle, AppleDevice,
@@ -637,37 +637,69 @@ def message_attachment(
     )
 
 
-def _confirm_provider_read_state(row: EmailMessage, db: Session, is_read: bool):
-    account = db.get(EmailAccount, row.account_id)
-    if not account:
-        raise HTTPException(409, "Source account is unavailable.")
+def _background_provider_read_state(message_id: int, user_id: int, is_read: bool):
+    db = SessionLocal()
     try:
+        row = db.scalar(select(EmailMessage).where(EmailMessage.id == message_id, EmailMessage.user_id == user_id))
+        if not row:
+            return
+        account = db.get(EmailAccount, row.account_id)
+        if not account:
+            raise RuntimeError("Source account unavailable.")
         if account.provider == "icloud":
-            confirmed = set_icloud_read(account, row.provider_message_id, is_read)
+            ok = set_icloud_read(account, row.provider_message_id, is_read)
         elif account.provider == "gmail":
-            confirmed = set_gmail_read(db, account, row.provider_message_id, is_read)
+            ok = set_gmail_read(db, account, row.provider_message_id, is_read)
         else:
             raise RuntimeError("Unsupported provider.")
-        if not confirmed:
-            raise RuntimeError("Provider did not confirm the read-state change.")
-    except Exception as exc:
-        # Surface a bounded provider-stage diagnostic to the authenticated owner;
-        # never log credentials or raw message content.
-        reason = str(exc).replace("\\n", " ").replace("\\r", " ")[:180] if isinstance(exc, RuntimeError) else "Provider operation failed."
-        raise HTTPException(502, f"Provider could not confirm the read-state change ({type(exc).__name__}: {reason})")
+        if not ok:
+            raise RuntimeError("Provider did not confirm requested read state.")
+        logger.info("Background read-state sync confirmed for message %s", message_id)
+    except Exception:
+        logger.exception("Background read-state sync failed for message %s", message_id)
+    finally:
+        db.close()
+
+
+def _background_provider_trash(message_id: int, user_id: int):
+    db = SessionLocal()
+    try:
+        row = db.scalar(select(EmailMessage).where(EmailMessage.id == message_id, EmailMessage.user_id == user_id))
+        if not row:
+            return
+        account = db.get(EmailAccount, row.account_id)
+        if not account:
+            raise RuntimeError("Source account unavailable.")
+        if account.provider == "icloud":
+            ok = move_icloud_to_trash(account, row.provider_message_id)
+        elif account.provider == "gmail":
+            ok = trash_gmail(db, account, row.provider_message_id)
+        else:
+            raise RuntimeError("Unsupported provider.")
+        if not ok:
+            raise RuntimeError("Provider did not confirm moving email to Trash.")
+        logger.info("Background Trash sync confirmed for message %s", message_id)
+    except Exception:
+        logger.exception("Background Trash sync failed for message %s", message_id)
+    finally:
+        db.close()
+
+
+def _queue_provider_read_state(background_tasks: BackgroundTasks, row: EmailMessage, db: Session, is_read: bool):
     row.is_read = is_read
     db.commit()
-    return {"is_read": is_read, "provider_sync": "confirmed"}
+    background_tasks.add_task(_background_provider_read_state, row.id, row.user_id, is_read)
+    return {"is_read": is_read, "provider_sync": "queued"}
 
 
 @app.post("/api/messages/{message_id}/read")
-def mark_read(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def mark_read(message_id: int, background_tasks: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = db.scalar(select(EmailMessage).where(
         EmailMessage.id == message_id, EmailMessage.user_id == user.id
     ))
     if not row or row.is_trashed:
         raise HTTPException(404, "Email not found")
-    return _confirm_provider_read_state(row, db, True)
+    return _queue_provider_read_state(background_tasks, row, db, True)
 
 
 @app.post("/api/messages/{message_id}/read-state")
@@ -680,32 +712,20 @@ def update_read_state(
     ))
     if not row or row.is_trashed:
         raise HTTPException(404, "Email not found")
-    return _confirm_provider_read_state(row, db, data.is_read)
+    return _queue_provider_read_state(background_tasks, row, db, data.is_read)
 
 @app.delete("/api/messages/{message_id}")
-def delete_message(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
+def delete_message(message_id: int, background_tasks: BackgroundTasks, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = db.scalar(select(EmailMessage).where(
         EmailMessage.id == message_id, EmailMessage.user_id == user.id
     ))
     if not row or row.is_trashed:
         raise HTTPException(404, "Email not found")
-    account = db.get(EmailAccount, row.account_id)
-    if not account:
-        raise HTTPException(409, "Source account is unavailable.")
-    try:
-        if account.provider == "icloud":
-            confirmed = move_icloud_to_trash(account, row.provider_message_id)
-        elif account.provider == "gmail":
-            confirmed = trash_gmail(db, account, row.provider_message_id)
-        else:
-            raise RuntimeError("Unsupported provider.")
-        if not confirmed:
-            raise RuntimeError("Provider did not confirm moving the email to Trash.")
-    except Exception as exc:
-        raise HTTPException(502, f"Provider could not confirm moving the email to Trash ({type(exc).__name__}).")
     row.is_trashed = True
     db.commit()
-    return {"trashed": True, "provider_sync": "confirmed"}
+    background_tasks.add_task(_background_provider_trash, row.id, row.user_id)
+    return {"trashed": True, "provider_sync": "queued"}
+
 
 @app.post("/api/messages/{message_id}/block")
 def block_sender(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
