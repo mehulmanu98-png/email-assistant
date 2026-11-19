@@ -36,8 +36,8 @@ from .schemas import (
     AppleDeviceCommandResultIn
 )
 from .policy import effective_priority
-from .providers import set_icloud_read, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
-from .gmail import set_gmail_read, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
+from .providers import set_icloud_read, set_icloud_starred, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
+from .gmail import set_gmail_read, set_gmail_starred, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
 from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
 from .cloud_jobs import trigger_mailbox_worker
 
@@ -507,7 +507,7 @@ def messages(
         "recipients": x.recipients, "subject": x.subject, "received_at": x.received_at,
         "snippet": x.snippet, "summary": x.current_summary, "thread_summary": x.thread_summary,
         "priority": x.priority, "priority_reason": x.priority_reason,
-        "is_read": x.is_read, "has_attachments": x.has_attachments
+        "is_read": x.is_read, "is_starred": x.is_starred, "has_attachments": x.has_attachments
     } for x in rows if not any(address and address in x.sender.lower() for address in blocked)]
 
 @app.get("/api/messages/{message_id}")
@@ -523,7 +523,7 @@ def message_detail(message_id: int, user: User = Depends(current_user), db: Sess
         "sender": row.sender, "recipients": row.recipients, "subject": row.subject,
         "received_at": row.received_at, "body_text": row.body_text,
         "summary": row.current_summary, "thread_summary": row.thread_summary,
-        "is_read": row.is_read, "has_attachments": row.has_attachments
+        "is_read": row.is_read, "is_starred": row.is_starred, "has_attachments": row.has_attachments
     }
 
 @app.get("/api/messages/{message_id}/thread")
@@ -699,6 +699,13 @@ def _run_email_action_job(job_id: int):
                     ok = set_gmail_read(db, account, row.provider_message_id, bool(job.desired_read))
                 else:
                     raise RuntimeError("Unsupported provider.")
+            elif job.action == "star":
+                if account.provider == "icloud":
+                    ok = set_icloud_starred(account, row.provider_message_id, bool(job.desired_read))
+                elif account.provider == "gmail":
+                    ok = set_gmail_starred(db, account, row.provider_message_id, bool(job.desired_read))
+                else:
+                    raise RuntimeError("Unsupported provider.")
             elif job.action == "trash":
                 if account.provider == "icloud":
                     ok = move_icloud_to_trash(account, row.provider_message_id)
@@ -786,6 +793,20 @@ def delete_message(message_id: int, background_tasks: BackgroundTasks, user: Use
     job = _enqueue_email_action(db, row, "trash")
     background_tasks.add_task(_run_email_action_job, job.id)
     return {"trashed": True, "provider_sync": "queued", "action_id": job.id}
+
+
+@app.post("/api/messages/{message_id}/star")
+def update_starred_state(message_id: int, data: ReadStateIn, background_tasks: BackgroundTasks,
+                         user: User = Depends(current_user), db: Session = Depends(get_db)):
+    row = db.scalar(select(EmailMessage).where(
+        EmailMessage.id == message_id, EmailMessage.user_id == user.id, EmailMessage.is_trashed.is_(False)
+    ))
+    if not row:
+        raise HTTPException(404, "Email not found")
+    row.is_starred = data.is_read
+    job = _enqueue_email_action(db, row, "star", data.is_read)
+    background_tasks.add_task(_run_email_action_job, job.id)
+    return {"is_starred": row.is_starred, "provider_sync": "queued", "action_id": job.id}
 
 
 @app.get("/api/email-actions/{action_id}")
