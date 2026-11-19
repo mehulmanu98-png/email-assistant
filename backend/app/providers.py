@@ -204,12 +204,16 @@ def set_icloud_read(account: EmailAccount, message_id: str, read: bool = True) -
                     elif isinstance(row, bytes):
                         payloads.append(row)
                 for payload in payloads:
-                    if re.search(rb"\\bFLAGS\\s+\\([^)]*\\\\Seen", payload, re.I):
-                        confirmed = True
-                        break
-                    if re.search(rb"\\bFLAGS\\s+\\([^)]*\\)", payload, re.I):
-                        confirmed = False
-                        break
+                    lowered = payload.lower()
+                    flags_start = lowered.find(b"flags (")
+                    if flags_start < 0:
+                        continue
+                    flags_end = lowered.find(b")", flags_start)
+                    if flags_end < 0:
+                        continue
+                    flags = lowered[flags_start:flags_end + 1]
+                    confirmed = b"\\\\seen" in flags
+                    break
                 if confirmed is read:
                     return confirmed
             if attempt < 2:
