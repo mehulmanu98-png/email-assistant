@@ -153,3 +153,20 @@
 .compact-list-actions .button{width:auto;flex:1;min-width:0;padding:6px 5px;font-size:9px}
 .unread-indicator{font-size:8px;font-weight:800;letter-spacing:.06em;color:#48688f;background:#edf3fa;border-radius:12px;padding:5px 7px;white-space:nowrap}
 @media(max-width:700px){.inbox-tabs{padding-left:10px;padding-right:10px}.compact-list-actions{padding:0 9px 9px}.compact-list-actions .button{font-size:8px}}
+
+
+/* Starred inbox and three-choice sender block dialog */
+.star-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;border-radius:7px;background:#f7f8fa;color:#9aa4b2}
+.star-toggle.starred{color:#3478d4;background:#edf4ff}
+.star-toggle:hover{background:#e8eef7}
+.block-sender-modal{max-width:460px;padding:26px}
+.block-modal-icon{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:#eef3fa;color:#2d4566;margin-bottom:14px}
+.block-sender-modal h2{font:700 20px Manrope;margin:0 0 8px}
+.block-sender-modal>p{font-size:13px;color:#697586;line-height:1.5}
+.block-sender-address{font-weight:700;color:#27364d!important;overflow-wrap:anywhere}
+.block-choice-list{display:grid;gap:9px;margin:18px 0}
+.block-choice-list button{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:12px 14px;text-align:left}
+.block-choice-list button small{font-size:11px;font-weight:400;color:#7d8794}
+.block-choice-list .danger-fill{background:#a93232;color:#fff;border:1px solid #a93232}
+.block-choice-list .danger-fill small{color:#ffe4e4}
+.block-provider-note{font-size:11px!important;color:#8a6a3e!important;background:#fff8ed;border:1px solid #f1e3cc;border-radius:8px;padding:10px 12px;margin-bottom:0}
