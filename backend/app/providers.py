@@ -186,16 +186,39 @@ def set_icloud_read(account: EmailAccount, message_id: str, read: bool = True) -
         uid = _find_icloud_uid(client, message_id)
         flag = chr(92) + "Seen"
         operation = "+FLAGS.SILENT" if read else "-FLAGS.SILENT"
-        status, _ = client.uid("STORE", uid, operation, "(" + flag + ")")
+        status, response = client.uid("STORE", uid, operation, "(" + flag + ")")
         if status != "OK":
-            raise RuntimeError("iCloud did not confirm the read-state update.")
-        status, rows = client.uid("FETCH", uid, "(FLAGS)")
-        if status != "OK":
-            raise RuntimeError("Could not verify the iCloud read state.")
-        confirmed = any(isinstance(row, tuple) and flag.encode() in row[0] for row in rows)
-        if confirmed != read:
-            raise RuntimeError("iCloud returned a different read state than requested.")
-        return confirmed
+            raise RuntimeError("iCloud did not accept the read-state update.")
+
+        # iCloud may acknowledge STORE before the updated FLAGS are visible to
+        # the next FETCH. Verify the UID explicitly and tolerate a short
+        # propagation delay; parse both tuple and byte response forms.
+        confirmed = None
+        for attempt in range(3):
+            fetch_status, rows = client.uid("FETCH", uid, "(UID FLAGS)")
+            if fetch_status == "OK":
+                payloads = []
+                for row in rows or []:
+                    if isinstance(row, tuple) and row:
+                        payloads.append(row[0])
+                    elif isinstance(row, bytes):
+                        payloads.append(row)
+                for payload in payloads:
+                    if re.search(rb"\\bFLAGS\\s+\\([^)]*\\\\Seen", payload, re.I):
+                        confirmed = True
+                        break
+                    if re.search(rb"\\bFLAGS\\s+\\([^)]*\\)", payload, re.I):
+                        confirmed = False
+                        break
+                if confirmed is read:
+                    return confirmed
+            if attempt < 2:
+                import time
+                time.sleep(0.35)
+
+        if confirmed is None:
+            raise RuntimeError("iCloud accepted the change but did not return readable FLAGS for verification. Refresh the mailbox and check Apple Mail.")
+        raise RuntimeError("iCloud accepted the change but its mailbox flags still show the opposite read state. Refresh the mailbox and retry.")
     finally:
         try:
             client.logout()
