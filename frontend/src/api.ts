@@ -25,6 +25,7 @@ export const api = {
   attachmentUrl: (id:number,index:number,inline=false) => API+"/messages/"+id+"/attachments/"+index+(inline?"?inline=true":""),
   markRead: (id:number) => request<any>("/messages/"+id+"/read",{method:"POST"}),
   setReadState: (id:number,is_read:boolean) => request<any>("/messages/"+id+"/read-state",{method:"POST",body:JSON.stringify({is_read})}),
+  emailActionStatus: (id:number) => request<any>("/email-actions/"+id),
   trash: (id:number) => request<any>("/messages/"+id,{method:"DELETE"}),
   block: (id:number) => request<any>("/messages/"+id+"/block",{method:"POST"}),
   createDraft: (id:number) => request<any>("/messages/"+id+"/draft",{method:"POST"}),
