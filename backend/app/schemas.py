@@ -55,6 +55,7 @@ class SendApprovalIn(BaseModel):
 
 class OutboundDraftIn(DraftIn):
     account_id: int = Field(gt=0)
+    attachments: list[dict] = Field(default_factory=list, max_length=10)
 
 
 class ReadStateIn(BaseModel):
