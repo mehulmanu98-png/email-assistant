@@ -652,13 +652,31 @@ def _run_email_action_job(job_id: int):
     """Execute one durable mailbox action with bounded exponential retries."""
     import time
     delays = [0, 3, 10, 30, 90]
-    for attempt, delay in enumerate(delays, start=1):
+    while True:
+        db = SessionLocal()
+        try:
+            job = db.get(EmailActionJob, job_id)
+            if not job or job.status in {"succeeded", "failed"}:
+                return
+            attempt = int(job.attempt_count or 0) + 1
+            if attempt > len(delays):
+                job.status = "failed"
+                db.commit()
+                return
+            delay = delays[attempt - 1]
+        finally:
+            db.close()
         if delay:
             time.sleep(delay)
         db = SessionLocal()
         try:
             job = db.get(EmailActionJob, job_id)
             if not job or job.status in {"succeeded", "failed"}:
+                return
+            attempt = int(job.attempt_count or 0) + 1
+            if attempt > len(delays):
+                job.status = "failed"
+                db.commit()
                 return
             row = db.scalar(select(EmailMessage).where(
                 EmailMessage.id == job.message_id, EmailMessage.user_id == job.user_id
@@ -702,12 +720,16 @@ def _run_email_action_job(job_id: int):
                 job = db.get(EmailActionJob, job_id)
                 if job:
                     job.status = "queued" if attempt < len(delays) else "failed"
+                    job.attempt_count = attempt
+                    job.next_attempt_at = utcnow() + timedelta(seconds=(delays[attempt] if attempt < len(delays) else 0))
                     job.last_error = (str(exc).replace("\\n", " ").replace("\\r", " ")[:300]
                                       or type(exc).__name__)
                     db.commit()
             except Exception:
                 db.rollback()
             logger.warning("Mailbox action job %s attempt %s failed: %s", job_id, attempt, type(exc).__name__)
+            if attempt >= len(delays):
+                return
         finally:
             db.close()
 
