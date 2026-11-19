@@ -1,3 +1,4 @@
+import base64
 import email
 import imaplib
 import re
@@ -383,7 +384,7 @@ def send_icloud_forward(
 
 
 def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[str],
-                subject: str, body: str, source_message: StoredMessage | None = None) -> str:
+                subject: str, body: str, source_message: StoredMessage | None = None, attachments: list[dict] | None = None) -> str:
     if not account.encrypted_secret:
         raise RuntimeError("The iCloud app-specific password is unavailable. Reconnect this account.")
     password = get_fernet().decrypt(account.encrypted_secret.encode()).decode()
@@ -398,6 +399,10 @@ def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[s
         message["In-Reply-To"] = source_message.provider_message_id
         message["References"] = (source_message.thread_key + " " + source_message.provider_message_id).strip()
     message.set_content(body)
+    for item in attachments or []:
+        raw = base64.b64decode(item.get("data_base64", ""), validate=True)
+        mime = str(item.get("mime_type") or "application/octet-stream").split("/", 1)
+        message.add_attachment(raw, maintype=mime[0], subtype=mime[1] if len(mime)>1 else "octet-stream", filename=str(item.get("filename") or "attachment"))
     recipients = list(dict.fromkeys(to + cc + bcc))
     if not recipients:
         raise RuntimeError("No recipients were supplied.")
