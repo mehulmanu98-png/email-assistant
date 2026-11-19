@@ -59,6 +59,7 @@ class EmailMessage(Base):
     priority: Mapped[str] = mapped_column(String(20), default="normal")
     priority_reason: Mapped[str] = mapped_column(Text, default="")
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_starred: Mapped[bool] = mapped_column(Boolean, default=False)
     is_trashed: Mapped[bool] = mapped_column(Boolean, default=False)
     has_attachments: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
