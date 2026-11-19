@@ -436,7 +436,7 @@ def set_icloud_starred(account: EmailAccount, message_id: str, starred: bool = T
             end = payload.find(b")", start)
             if start < 0 or end < 0:
                 continue
-            confirmed = b"\\\\flagged" in payload[start:end + 1].lower()
+            confirmed = b"\\flagged" in payload[start:end + 1].lower()
             if confirmed == starred:
                 return True
             raise RuntimeError("iCloud returned a different starred state than requested.")
