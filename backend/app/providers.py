@@ -410,3 +410,39 @@ def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[s
         if refused:
             raise RuntimeError("The iCloud SMTP server refused one or more recipients.")
     return message["Message-ID"]
+
+
+def set_icloud_starred(account: EmailAccount, message_id: str, starred: bool = True) -> bool:
+    """Set the IMAP \\Flagged flag on the source message."""
+    client, _ = _connect(account)
+    try:
+        status, _ = client.select("INBOX", readonly=False)
+        if status != "OK":
+            raise RuntimeError("iCloud Inbox could not be opened for starring.")
+        uid = _find_icloud_uid(client, message_id)
+        flag = chr(92) + "Flagged"
+        operation = "+FLAGS.SILENT" if starred else "-FLAGS.SILENT"
+        status, _ = client.uid("STORE", uid, operation, "(" + flag + ")")
+        if status != "OK":
+            raise RuntimeError("iCloud did not accept the starred-state update.")
+        status, rows = client.uid("FETCH", uid, "(FLAGS)")
+        if status != "OK":
+            raise RuntimeError("Could not verify the iCloud starred state.")
+        for row in rows or []:
+            payload = row[0] if isinstance(row, tuple) and row else row
+            if not isinstance(payload, bytes):
+                continue
+            start = payload.lower().find(b"flags (")
+            end = payload.find(b")", start)
+            if start < 0 or end < 0:
+                continue
+            confirmed = b"\\\\flagged" in payload[start:end + 1].lower()
+            if confirmed == starred:
+                return True
+            raise RuntimeError("iCloud returned a different starred state than requested.")
+        raise RuntimeError("iCloud did not return FLAGS to verify starring.")
+    finally:
+        try:
+            client.logout()
+        except Exception:
+            pass
