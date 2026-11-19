@@ -637,59 +637,80 @@ def message_attachment(
     )
 
 
-def _background_provider_read_state(message_id: int, user_id: int, is_read: bool):
-    db = SessionLocal()
-    try:
-        row = db.scalar(select(EmailMessage).where(EmailMessage.id == message_id, EmailMessage.user_id == user_id))
-        if not row:
+def _run_email_action_job(job_id: int):
+    """Execute one durable mailbox action with bounded exponential retries."""
+    import time
+    delays = [0, 3, 10, 30, 90]
+    for attempt, delay in enumerate(delays, start=1):
+        if delay:
+            time.sleep(delay)
+        db = SessionLocal()
+        try:
+            job = db.get(EmailActionJob, job_id)
+            if not job or job.status in {"succeeded", "failed"}:
+                return
+            row = db.scalar(select(EmailMessage).where(
+                EmailMessage.id == job.message_id, EmailMessage.user_id == job.user_id
+            ))
+            if not row:
+                job.status = "failed"
+                job.last_error = "Message no longer exists."
+                db.commit()
+                return
+            account = db.get(EmailAccount, row.account_id)
+            if not account:
+                raise RuntimeError("Source account unavailable.")
+            job.status = "running"
+            job.attempt_count = attempt
+            db.commit()
+            if job.action == "read":
+                if account.provider == "icloud":
+                    ok = set_icloud_read(account, row.provider_message_id, bool(job.desired_read))
+                elif account.provider == "gmail":
+                    ok = set_gmail_read(db, account, row.provider_message_id, bool(job.desired_read))
+                else:
+                    raise RuntimeError("Unsupported provider.")
+            elif job.action == "trash":
+                if account.provider == "icloud":
+                    ok = move_icloud_to_trash(account, row.provider_message_id)
+                elif account.provider == "gmail":
+                    ok = trash_gmail(db, account, row.provider_message_id)
+                else:
+                    raise RuntimeError("Unsupported provider.")
+            else:
+                raise RuntimeError("Unsupported mailbox action.")
+            if not ok:
+                raise RuntimeError("Provider did not confirm the requested action.")
+            job.status = "succeeded"
+            job.last_error = ""
+            db.commit()
+            logger.info("Mailbox action job %s succeeded on attempt %s", job_id, attempt)
             return
-        account = db.get(EmailAccount, row.account_id)
-        if not account:
-            raise RuntimeError("Source account unavailable.")
-        if account.provider == "icloud":
-            ok = set_icloud_read(account, row.provider_message_id, is_read)
-        elif account.provider == "gmail":
-            ok = set_gmail_read(db, account, row.provider_message_id, is_read)
-        else:
-            raise RuntimeError("Unsupported provider.")
-        if not ok:
-            raise RuntimeError("Provider did not confirm requested read state.")
-        logger.info("Background read-state sync confirmed for message %s", message_id)
-    except Exception:
-        logger.exception("Background read-state sync failed for message %s", message_id)
-    finally:
-        db.close()
+        except Exception as exc:
+            try:
+                job = db.get(EmailActionJob, job_id)
+                if job:
+                    job.status = "queued" if attempt < len(delays) else "failed"
+                    job.last_error = (str(exc).replace("\\n", " ").replace("\\r", " ")[:300]
+                                      or type(exc).__name__)
+                    db.commit()
+            except Exception:
+                db.rollback()
+            logger.warning("Mailbox action job %s attempt %s failed: %s", job_id, attempt, type(exc).__name__)
+        finally:
+            db.close()
 
 
-def _background_provider_trash(message_id: int, user_id: int):
-    db = SessionLocal()
-    try:
-        row = db.scalar(select(EmailMessage).where(EmailMessage.id == message_id, EmailMessage.user_id == user_id))
-        if not row:
-            return
-        account = db.get(EmailAccount, row.account_id)
-        if not account:
-            raise RuntimeError("Source account unavailable.")
-        if account.provider == "icloud":
-            ok = move_icloud_to_trash(account, row.provider_message_id)
-        elif account.provider == "gmail":
-            ok = trash_gmail(db, account, row.provider_message_id)
-        else:
-            raise RuntimeError("Unsupported provider.")
-        if not ok:
-            raise RuntimeError("Provider did not confirm moving email to Trash.")
-        logger.info("Background Trash sync confirmed for message %s", message_id)
-    except Exception:
-        logger.exception("Background Trash sync failed for message %s", message_id)
-    finally:
-        db.close()
-
-
-def _queue_provider_read_state(background_tasks: BackgroundTasks, row: EmailMessage, db: Session, is_read: bool):
-    row.is_read = is_read
+def _enqueue_email_action(db: Session, row: EmailMessage, action: str, desired_read: bool | None = None):
+    job = EmailActionJob(
+        user_id=row.user_id, message_id=row.id, action=action,
+        desired_read=desired_read, status="queued", attempt_count=0,
+        next_attempt_at=utcnow(), last_error=""
+    )
+    db.add(job)
     db.commit()
-    background_tasks.add_task(_background_provider_read_state, row.id, row.user_id, is_read)
-    return {"is_read": is_read, "provider_sync": "queued"}
+    db.refresh(job)
+    return job
 
 
 @app.post("/api/messages/{message_id}/read")
@@ -722,9 +743,9 @@ def delete_message(message_id: int, background_tasks: BackgroundTasks, user: Use
     if not row or row.is_trashed:
         raise HTTPException(404, "Email not found")
     row.is_trashed = True
-    db.commit()
-    background_tasks.add_task(_background_provider_trash, row.id, row.user_id)
-    return {"trashed": True, "provider_sync": "queued"}
+    job = _enqueue_email_action(db, row, "trash")
+    background_tasks.add_task(_run_email_action_job, job.id)
+    return {"trashed": True, "provider_sync": "queued", "action_id": job.id}
 
 
 @app.post("/api/messages/{message_id}/block")
