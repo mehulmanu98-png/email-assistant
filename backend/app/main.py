@@ -850,6 +850,7 @@ def outbound_draft_out(draft: OutboundDraft, account: EmailAccount | None = None
         "bcc": draft.bcc_json,
         "subject": draft.subject,
         "body": draft.body,
+        "attachments": draft.attachments_json or [],
         "status": draft.status,
         "provider_sent_id": draft.provider_sent_id,
         "created_at": draft.created_at,
@@ -874,7 +875,7 @@ def _owned_connected_account(db: Session, user_id: int, account_id: int):
 def list_outbound_drafts(user: User = Depends(current_user), db: Session = Depends(get_db)):
     rows = db.scalars(select(OutboundDraft).where(
         OutboundDraft.user_id == user.id,
-        OutboundDraft.status == "draft",
+        OutboundDraft.status.in_(["draft", "queued", "sending", "sent", "send_uncertain", "failed"]),
     ).order_by(desc(OutboundDraft.updated_at)).limit(50)).all()
     output = []
     for row in rows:
@@ -896,6 +897,7 @@ def create_outbound_draft(
         bcc_json=[str(value) for value in data.bcc],
         subject=data.subject,
         body=data.body,
+        attachments_json=data.attachments,
         status="draft",
     )
     db.add(draft)
@@ -924,6 +926,7 @@ def save_outbound_draft(
     draft.bcc_json = [str(value) for value in data.bcc]
     draft.subject = data.subject
     draft.body = data.body
+    draft.attachments_json = data.attachments
     draft.status = "draft"
     db.commit()
     db.refresh(draft)
