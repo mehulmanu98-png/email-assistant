@@ -228,7 +228,7 @@ def run_send_once() -> bool:
                 if account.provider == "icloud":
                     provider_id = send_icloud(
                         account, list(draft.to_json or []), list(draft.cc_json or []),
-                        list(draft.bcc_json or []), draft.subject, draft.body, None,
+                        list(draft.bcc_json or []), draft.subject, draft.body, None, draft.attachments_json or [],
                     )
                 elif account.provider == "gmail":
                     provider_id = send_gmail(
