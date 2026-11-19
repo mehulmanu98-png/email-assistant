@@ -170,3 +170,12 @@
 .block-choice-list .danger-fill{background:#a93232;color:#fff;border:1px solid #a93232}
 .block-choice-list .danger-fill small{color:#ffe4e4}
 .block-provider-note{font-size:11px!important;color:#8a6a3e!important;background:#fff8ed;border:1px solid #f1e3cc;border-radius:8px;padding:10px 12px;margin-bottom:0}
+
+
+.compose-attachments{display:grid;gap:6px;margin:8px 0 14px}
+.compose-attachments>div{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #e2e7ee;border-radius:8px;background:#f8fafc;font-size:12px}
+.compose-attachments>div span{flex:1;overflow-wrap:anywhere}
+.compose-attachments>div button{color:#a33;font-size:11px;font-weight:600}
+.star-toggle{display:inline-flex;align-items:center;justify-content:center;flex:0 0 30px;width:30px;height:30px;border-radius:7px;background:#f7f8fa;color:#9aa4b2}
+.star-toggle.starred{color:#3478d4;background:#edf4ff}
+.star-toggle:hover{background:#e8eef7}
