@@ -195,7 +195,7 @@ def set_icloud_read(account: EmailAccount, message_id: str, read: bool = True) -
         # propagation delay; parse both tuple and byte response forms.
         confirmed = None
         for attempt in range(3):
-            fetch_status, rows = client.uid("FETCH", uid, "(UID FLAGS)")
+            fetch_status, rows = client.uid("FETCH", uid, "(FLAGS)")
             if fetch_status == "OK":
                 payloads = []
                 for row in rows or []:
@@ -222,7 +222,7 @@ def set_icloud_read(account: EmailAccount, message_id: str, read: bool = True) -
 
         if confirmed is None:
             raise RuntimeError("iCloud accepted the change but did not return readable FLAGS for verification. Refresh the mailbox and check Apple Mail.")
-        raise RuntimeError("iCloud accepted the change but its mailbox flags still show the opposite read state. Refresh the mailbox and retry.")
+        raise RuntimeError("iCloud returned a different read state than requested after accepting the update. Refresh the mailbox and retry.")
     finally:
         try:
             client.logout()
