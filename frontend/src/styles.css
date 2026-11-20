@@ -269,3 +269,48 @@
 .activity-log-toggle b{font-size:12px}
 .activity-log-toggle small{font-size:10px;color:#8792a0}
 .activity-log-toggle>span:last-child{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#536a88;white-space:nowrap}
+
+
+/* Gmail-like chronological conversation and removable recipient chips */
+.gmail-thread-view{background:#fff;border:1px solid #e2e6ed;border-radius:14px;overflow:hidden;margin:0 0 18px}
+.gmail-thread-title{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid #e8ebf1;color:#344054}
+.gmail-thread-title span{font-size:12px;color:#8791a2}
+.gmail-thread-message{border-bottom:1px solid #e8ebf1}
+.gmail-thread-message:last-child{border-bottom:0}
+.gmail-thread-message>summary{list-style:none;display:grid;grid-template-columns:38px minmax(0,1fr) auto;align-items:start;gap:12px;padding:16px 18px;cursor:pointer}
+.gmail-thread-message>summary::-webkit-details-marker{display:none}
+.gmail-thread-message>summary::marker{content:""}
+.gmail-thread-avatar{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#edf1f8;color:#52627b;font-weight:700;font-size:14px}
+.gmail-thread-summary-main{min-width:0;display:flex;flex-direction:column;gap:3px}
+.gmail-thread-summary-main>b{font-size:14px;color:#202939}
+.gmail-thread-summary-main>small{font-size:12px;color:#667085}
+.gmail-thread-summary-main>span{font-size:12px;color:#8791a2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.gmail-thread-message>summary>time{font-size:12px;color:#7a8495;white-space:nowrap;padding-top:2px}
+.gmail-thread-message[open]>summary{padding-bottom:9px}
+.gmail-thread-message-body{padding:4px 22px 20px 68px;min-width:0}
+.gmail-thread-recipient-line{font-size:12px;color:#7a8495;margin:0 0 14px}
+.gmail-thread-message-body>pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:14px;line-height:1.7;color:#303846;margin:0 0 16px}
+.gmail-thread-attachments{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.gmail-attachment-card{display:flex;align-items:center;gap:10px;max-width:100%;min-width:min(360px,100%);padding:10px 12px;border:1px solid #dfe4ec;border-radius:9px;background:#fff}
+.gmail-attachment-file-icon{width:38px;height:42px;flex:0 0 38px;display:grid;place-items:center;border-radius:5px;background:#f1f4f9;color:#5d6d86}
+.gmail-attachment-file-info{min-width:0;display:flex;flex:1;flex-direction:column;gap:3px}
+.gmail-attachment-file-info>b{font-size:12px;color:#303846;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gmail-attachment-file-info>small{font-size:11px;color:#8993a3}
+.gmail-attachment-file-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.recipient-field{margin:10px 0 12px}
+.recipient-field>label{display:block;margin:0 0 6px;font-size:12px;font-weight:650;color:#657187}
+.recipient-chip-input{display:flex;align-items:center;flex-wrap:wrap;gap:6px;min-height:42px;padding:5px 8px;border:1px solid #d8dee8;border-radius:9px;background:#fff;transition:border-color .15s,box-shadow .15s}
+.recipient-chip-input:focus-within{border-color:#7d96d8;box-shadow:0 0 0 3px rgba(86,117,190,.12)}
+.recipient-chip-list{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.recipient-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 5px 4px 9px;border:1px solid #dce3ef;border-radius:7px;background:#f3f6fb;color:#344054;font-size:12px}
+.recipient-chip>span{overflow-wrap:anywhere}
+.recipient-chip>button{display:grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:5px;background:transparent;color:#69778e;cursor:pointer}
+.recipient-chip>button:hover{background:#e3e9f3;color:#26344a}
+.recipient-chip-entry{flex:1 1 180px;min-width:150px;width:auto!important;border:0!important;outline:0!important;box-shadow:none!important;background:transparent!important;padding:7px 4px!important;margin:0!important;font:inherit;font-size:13px}
+@media(max-width:680px){
+ .gmail-thread-message>summary{grid-template-columns:34px minmax(0,1fr);gap:9px;padding:13px}
+ .gmail-thread-message>summary>time{grid-column:2;grid-row:2;padding:0}
+ .gmail-thread-message-body{padding:4px 14px 16px 56px}
+ .gmail-attachment-card{min-width:100%;flex-wrap:wrap}
+ .gmail-attachment-file-actions{width:100%;padding-left:48px}
+}
