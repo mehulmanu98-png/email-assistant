@@ -124,7 +124,7 @@ def run_once() -> bool:
             else:
                 raise RuntimeError("Unsupported provider.")
             linked_updates = append_linked_email_messages(db, account.id)
-            enrichment = enrich_synced_messages(db, account, batch_size=20)
+            enrichment = enrich_synced_messages(db, account, batch_size=10)
             job.status = "completed"
             job.details = (
                 f"Imported {count} new messages; appended {linked_updates} new message(s) "
