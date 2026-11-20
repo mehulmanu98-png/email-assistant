@@ -87,6 +87,8 @@ def enrich_synced_messages(db, account: EmailAccount, batch_size: int = 20) -> d
     """Create missing email and attachment summaries after mailbox sync; never sends or modifies mail."""
     if not settings.gemini_api_key:
         return {"processed": 0, "failed": 0, "skipped": "Gemini API key is not configured"}
+    if not settings.gemini_background_summaries_enabled:
+        return {"processed": 0, "failed": 0, "skipped": "Background summaries are disabled until free-tier/billing settings are confirmed"}
     rows = db.scalars(
         select(EmailMessage)
         .where(
