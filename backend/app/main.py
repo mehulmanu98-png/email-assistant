@@ -589,13 +589,14 @@ def email_ai_assist(message_id: int, data: EmailAIAssistIn,
         "rephrase": "Rewrite the user's edited draft to improve clarity, flow and tone while preserving all meaning, facts, commitments and intent.",
         "grammar": "Correct grammar, spelling, punctuation and obvious language errors only. Do not change meaning, facts, tone or structure unnecessarily.",
         "ask": "Answer the user's question using only the supplied email context. If the emails do not contain the answer, say so.",
+        "chat": "Continue the email-writing conversation. Follow the latest user instruction in the context of the current draft and previous turns.",
         "summary": "Summarise this individual email accurately in concise bullet points. Include key facts, requests, dates and actions.",
         "thread_summary": "Summarise the complete email thread chronologically. Highlight decisions, open questions, commitments, deadlines and next actions.",
     }
     try:
         rows = [source]
         scan_complete = True
-        if data.mode in {"thread_summary", "draft", "ask"}:
+        if data.mode in {"thread_summary", "draft", "ask", "chat"}:
             rows, scan_complete, partial_reasons, _ = load_provider_thread(db, account, source)
         context = "\n\n".join(
             f"EMAIL {i+1}\nFrom: {row.sender}\nTo/CC: {row.recipients}\nDate: {row.received_at}\nSubject: {row.subject}\nBody:\n{(row.body_text or '')[:18000]}"
@@ -614,6 +615,8 @@ def email_ai_assist(message_id: int, data: EmailAIAssistIn,
             task = "Return only the corrected complete email body. Make the smallest changes needed."
         elif data.mode in {"summary", "thread_summary"}:
             task = "Return a concise, readable summary. Do not infer missing facts."
+        elif data.mode == "chat":
+            task = "If the user asks to change, rewrite, shorten, expand, soften, strengthen, rephrase or correct the current draft, return the COMPLETE revised email body only, preserving facts and intent. If the user asks a question rather than requesting an edit, answer conversationally and clearly. Never invent facts or commitments."
         else:
             task = "Answer clearly and cite which email or date supports the answer where possible. Do not invent missing information."
         prompt = (
