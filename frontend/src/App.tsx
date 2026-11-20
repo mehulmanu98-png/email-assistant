@@ -133,7 +133,7 @@ export default function App(){
   ...tasks.map((x:any)=>({id:"task-"+x.id,type:"AI task",title:x.title,detail:x.blocker||x.instructions||"",status:x.status,error:["failed","blocked"].includes(x.status)?x.blocker:"",at:x.updated_at||x.created_at})),
   ...savedOutboundDrafts.map((x:any)=>({id:"outbound-"+x.id,type:"Outgoing email",title:x.subject||"Untitled email",detail:(x.to||[]).join(", "),status:x.status,error:x.status==="failed"?"Sending failed":"",at:x.updated_at||x.created_at})),
   ...followups.map((x:any)=>({id:"followup-"+x.id,type:"Follow-up",title:x.title,detail:x.description||"",status:x.status,error:"",at:x.updated_at||x.created_at}))
- ].filter((x:any)=>x.at).sort((x:any,y:any)=>new Date(y.at).getTime()-new Date(x.at).getTime()).slice(0,100);
+ ].filter((x:any)=>x.at).sort((x:any,y:any)=>new Date(y.at).getTime()-new Date(x.at).getTime()).slice(0,500);
  return <div className="app-shell">
   <aside className="sidebar"><div className="brand"><div className="mark">M</div><div><b>Email Assistant</b><small>Private workspace</small></div></div><div className="nav-label">WORKSPACE</div>
    {nav.map(n=><button key={n.name} className={"nav-item "+(view===n.name?"active":"")} onClick={()=>{setView(n.name);setSelected(null)}}><n.icon size={18}/><span>{n.name}</span>{n.name==="Inbox"&&unread>0&&<em>{unread}</em>}</button>)}
