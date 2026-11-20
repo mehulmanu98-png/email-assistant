@@ -145,6 +145,7 @@ def health(db: Session = Depends(get_db)):
         "ai_ready": bool(settings.gemini_api_key),
         "ai_provider": "gemini" if settings.gemini_api_key else "not_configured",
         "ai_status": "ready" if settings.gemini_api_key else "awaiting_gemini_api_key",
+        "background_summaries_enabled": bool(settings.gemini_api_key and settings.gemini_background_summaries_enabled),
         "scheduled_mailbox_sync": True,
         "notifications": False
     }
