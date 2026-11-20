@@ -52,7 +52,7 @@ def init_db():
     Base.metadata.create_all(bind=engine)
     _add_missing_columns("reply_drafts", {"provider_sent_id": "VARCHAR(500)"})
     _add_missing_columns("outbound_drafts", {"attachments_json": "JSONB" if DATABASE_URL.get_backend_name() == "postgresql" else "JSON"})
-    _add_missing_columns("email_messages", {"is_starred": "BOOLEAN NOT NULL DEFAULT FALSE"})
+    _add_missing_columns("email_messages", {"is_starred": "BOOLEAN NOT NULL DEFAULT FALSE", "attachment_summary": "TEXT NOT NULL DEFAULT ''"})
     sync_time_type = "TIMESTAMP WITH TIME ZONE" if DATABASE_URL.get_backend_name() == "postgresql" else "DATETIME"
     _add_missing_columns("sync_jobs", {
         "attempt_count": "INTEGER NOT NULL DEFAULT 0",
