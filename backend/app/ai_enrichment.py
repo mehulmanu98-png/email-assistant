@@ -93,7 +93,9 @@ def enrich_synced_messages(db, account: EmailAccount, batch_size: int = 20) -> d
             EmailMessage.account_id == account.id,
             EmailMessage.user_id == account.user_id,
             EmailMessage.is_trashed.is_(False),
-            (EmailMessage.current_summary == "") | (EmailMessage.attachment_summary == ""),
+            (EmailMessage.current_summary == "") | (
+                EmailMessage.has_attachments.is_(True) & (EmailMessage.attachment_summary == "")
+            ),
         )
         .order_by(EmailMessage.received_at.desc(), EmailMessage.id.desc())
         .limit(batch_size)
