@@ -245,3 +245,20 @@
 .activity-status.completed,.activity-status.sent,.activity-status.done{background:#eaf5ed;color:#477956}
 .activity-status.failed,.activity-status.blocked,.activity-status.send_uncertain{background:#fff0ee;color:#b04d45}
 .activity-status.queued,.activity-status.pending_on_device,.activity-status.waiting_for_user,.activity-status.in_progress,.activity-status.sending{background:#fff6e8;color:#966a2e}
+
+
+.original-primary{margin-top:18px;padding:16px 18px;border:1px solid #e8ebef;border-radius:10px;background:#fff}
+.original-primary>label{font-size:10px;font-weight:800;letter-spacing:.1em;color:#87919e}
+.original-meta{display:flex;justify-content:space-between;gap:12px;margin-top:12px;color:#536174;font-size:11px}
+.original-meta span{color:#8c96a4}
+.original-primary pre{font:13px/1.6 Arial,Helvetica,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;color:#303b49;margin:14px 0 0}
+.thread-count{font-size:10px;background:#edf2f7;color:#56677d;border-radius:15px;padding:4px 7px}
+.thread-message-collapsible{padding:12px 14px;border-top:1px solid #edf0f3;background:#fff}
+.thread-message-collapsible summary{display:grid;grid-template-columns:1fr auto;gap:5px 12px;align-items:center;cursor:pointer;list-style:none}
+.thread-message-collapsible summary::-webkit-details-marker{display:none}
+.thread-message-collapsible summary b{font-size:11px;color:#39475a}
+.thread-message-collapsible summary span{font-size:10px;color:#929ba7}
+.thread-message-collapsible summary strong{grid-column:1/-1;font-size:11px;color:#586678;font-weight:600}
+.thread-message-collapsible[open]{background:#fbfcfd}
+.thread-message-collapsible>pre{font:13px/1.6 Arial,Helvetica,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;color:#303b49;margin:12px 0 0}
+.thread-message-collapsible>.thread-recipients{font-size:10px;color:#8c95a0;margin:9px 0 0}
