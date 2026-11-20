@@ -318,7 +318,7 @@ def schedule_due_syncs() -> int:
                 )).all()
                 for account in accounts:
                     db.add(SyncJob(user_id=user_id, account_id=account.id, status="queued",
-                                   details=f"Scheduled mailbox sync ({slot} {timezone_name}; AI review disabled)."))
+                                   details=f"Scheduled mailbox sync ({slot} {timezone_name}; background email/attachment summaries enabled when Gemini is configured)."))
                     queued += 1
         db.commit()
         return queued
@@ -355,7 +355,7 @@ def run_scheduled_batch(max_jobs: int = 100) -> int:
 
 def main() -> None:
     init_db()
-    log.info("Worker running: mailbox sync enabled; AI execution and notifications disabled.")
+    log.info("Worker running: mailbox sync and configured background email/attachment summaries enabled; proactive notifications disabled.")
     while True:
         try:
             schedule_due_syncs()
