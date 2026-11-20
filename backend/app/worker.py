@@ -353,6 +353,18 @@ def run_scheduled_batch(max_jobs: int = 100) -> int:
         release_worker_lease(lease_token)
 
 
+def run_send_batch(max_jobs: int = 25) -> int:
+    """Process approved outgoing drafts immediately, without waiting for mailbox polling."""
+    init_db()
+    processed = 0
+    while processed < max_jobs:
+        if not run_send_once():
+            break
+        processed += 1
+    log.info("Immediate send worker finished; processed %s approved outgoing draft(s).", processed)
+    return processed
+
+
 def main() -> None:
     init_db()
     log.info("Worker running: mailbox sync and configured background email/attachment summaries enabled; proactive notifications disabled.")
@@ -372,8 +384,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--scheduled-once", action="store_true",
                         help="Run the scheduler and drain queued mailbox jobs, then exit.")
+    parser.add_argument("--send-once", action="store_true",
+                        help="Immediately drain approved outgoing drafts without mailbox polling.")
     args = parser.parse_args()
-    if args.scheduled_once:
+    if args.send_once:
+        run_send_batch()
+    elif args.scheduled_once:
         run_scheduled_batch()
     else:
         main()
