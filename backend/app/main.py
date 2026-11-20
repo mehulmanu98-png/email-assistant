@@ -594,7 +594,7 @@ def messages(
             "is_starred": any(item.is_starred for item in thread_rows),
             "has_attachments": any(item.has_attachments for item in thread_rows),
         })
-    return sorted(result, key=lambda item: (item["received_at"] or datetime.min), reverse=True)
+    return sorted(result, key=lambda item: item["received_at"].timestamp() if item["received_at"] else 0, reverse=True)
 
 @app.get("/api/messages/{message_id}")
 def message_detail(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -649,6 +649,7 @@ def message_thread(
             "subject": row.subject,
             "received_at": row.received_at,
             "body_text": row.body_text,
+            "summary": row.current_summary, "attachment_summary": row.attachment_summary,
             "is_read": row.is_read,
             "has_attachments": row.has_attachments,
         } for row in rows],
