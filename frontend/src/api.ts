@@ -24,6 +24,7 @@ export const api = {
   message: (id:number) => request<any>("/messages/"+id),
   thread: (id:number) => request<any>("/messages/"+id+"/thread"),
   attachments: (id:number) => request<any>("/messages/"+id+"/attachments"),
+  summarizeAttachments: (id:number,indexes:number[]) => request<any>("/messages/"+id+"/attachments/summary",{method:"POST",body:JSON.stringify({attachment_indexes:indexes})}),
   attachmentUrl: (id:number,index:number,inline=false) => API+"/messages/"+id+"/attachments/"+index+(inline?"?inline=true":""),
   markRead: (id:number) => request<any>("/messages/"+id+"/read",{method:"POST"}),
   setReadState: (id:number,is_read:boolean) => request<any>("/messages/"+id+"/read-state",{method:"POST",body:JSON.stringify({is_read})}),
