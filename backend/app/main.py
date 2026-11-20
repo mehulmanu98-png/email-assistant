@@ -516,14 +516,14 @@ def messages(
                             "\\"sender\\":\\"email/name or empty\\","
                             "\\"after\\":\\"YYYY-MM-DD or empty\\","
                             "\\"before\\":\\"YYYY-MM-DD or empty\\"}. "
-                            "Interpret relative dates using current date 2026-11-20. Never invent a sender or date. "
+                            "Interpret relative dates using current date {datetime.now(timezone.utc).date().isoformat()}. Never invent a sender or date. "
                             "Search request: " + q[:500]
                         )
                     }, timeout=20.0
                 )
                 if parsed.status_code < 400:
                     p = parsed.json()
-                    text_out = "\\n".join(part.get("text", "") for step in p.get("steps", []) if step.get("type") == "model_output" for part in step.get("content", []) if part.get("type") == "text")
+                    text_out = "\n".join(part.get("text", "") for step in p.get("steps", []) if step.get("type") == "model_output" for part in step.get("content", []) if part.get("type") == "text")
                     obj = json.loads(text_out.strip().removeprefix("```json").removesuffix("```").strip())
                     search_terms = [str(x)[:100] for x in obj.get("terms", [])[:6] if str(x).strip()] or search_terms
                     sender_filter = str(obj.get("sender", ""))[:200]
