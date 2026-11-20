@@ -282,5 +282,13 @@ def load_provider_thread(db: Session, account: EmailAccount, source: EmailMessag
     if account.provider == "gmail":
         return _gmail_thread(db, account, source)
     if account.provider == "icloud":
+        # The inbox list already groups all locally synced iCloud messages by
+        # their References/In-Reply-To root. If it contains a multi-message
+        # conversation, render that cache immediately instead of rescanning
+        # every IMAP folder and delaying the conversation UI on each open.
+        cached = _thread_messages(db, account, canonical_thread_key(db, account, source))
+        if len(cached) > 1:
+            db.commit()
+            return cached, False, ["Showing locally synced messages; use Sync Now to check for newer replies."], 0
         return _icloud_thread(db, account, source)
     raise RuntimeError("Unsupported email provider.")
