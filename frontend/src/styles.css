@@ -231,3 +231,17 @@
 
 /* Keep original email text one step smaller on every screen size. */
 .original pre{font-size:13px!important;line-height:1.55!important}
+
+
+.activity-summary{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.activity-summary span{font-size:10px;color:#647185;background:#f2f4f7;border-radius:20px;padding:6px 9px}
+.activity-row{display:flex;align-items:flex-start;gap:12px;justify-content:space-between;border-top:1px solid #eff1f3;padding:11px 6px}
+.activity-main{min-width:0;display:grid;gap:3px}
+.activity-main>b{font-size:12px;color:#344258;overflow-wrap:anywhere}
+.activity-main>small{font-size:10px;color:#929ba7}
+.activity-main>p{font-size:10px;line-height:1.45;color:#707c8c;margin:2px 0;overflow-wrap:anywhere}
+.activity-main>p.activity-error{color:#b34b4b}
+.activity-status{flex:none;font-size:9px;text-transform:capitalize;border-radius:16px;padding:5px 8px;background:#eef2f6;color:#637185}
+.activity-status.completed,.activity-status.sent,.activity-status.done{background:#eaf5ed;color:#477956}
+.activity-status.failed,.activity-status.blocked,.activity-status.send_uncertain{background:#fff0ee;color:#b04d45}
+.activity-status.queued,.activity-status.pending_on_device,.activity-status.waiting_for_user,.activity-status.in_progress,.activity-status.sending{background:#fff6e8;color:#966a2e}
