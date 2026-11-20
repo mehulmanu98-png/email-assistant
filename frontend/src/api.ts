@@ -38,6 +38,7 @@ export const api = {
   saveDraft: (id:number,data:any) => request<any>("/drafts/"+id,{method:"PATCH",body:JSON.stringify(data)}),
   sendDraft: (id:number,updated_at:string) => request<any>("/drafts/"+id+"/send",{method:"POST",body:JSON.stringify({confirm_send:true,expected_updated_at:updated_at})}),
   outboundDrafts: () => request<any[]>("/outbound-drafts"),
+  sentItems: () => request<any[]>("/sent"),
   createOutboundDraft: (data:any) => request<any>("/outbound-drafts",{method:"POST",body:JSON.stringify(data)}),
   saveOutboundDraft: (id:number,data:any) => request<any>("/outbound-drafts/"+id,{method:"PATCH",body:JSON.stringify(data)}),
   sendOutboundDraft: (id:number,updated_at:string) => request<any>("/outbound-drafts/"+id+"/send",{method:"POST",body:JSON.stringify({confirm_send:true,expected_updated_at:updated_at})}),
