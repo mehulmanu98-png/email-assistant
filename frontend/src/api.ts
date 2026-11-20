@@ -20,7 +20,7 @@ export const api = {
   updateSettings: (data:any) => request<any>("/settings",{method:"PATCH",body:JSON.stringify(data)}),
   addAccount: (email:string,app_password:string) => request<any>("/accounts",{method:"POST",body:JSON.stringify({provider:"icloud",email,app_password})}),
   disconnectAccount: (id:number) => request<any>("/accounts/"+id,{method:"DELETE"}),
-  messages: (q:string) => request<any[]>("/messages?q="+encodeURIComponent(q)),
+  messages: (q:string,folder="inbox") => request<any[]>("/messages?q="+encodeURIComponent(q)+"&folder="+encodeURIComponent(folder)),
   message: (id:number) => request<any>("/messages/"+id),
   thread: (id:number) => request<any>("/messages/"+id+"/thread"),
   attachments: (id:number) => request<any>("/messages/"+id+"/attachments"),
