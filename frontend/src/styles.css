@@ -314,3 +314,5 @@
  .gmail-attachment-card{min-width:100%;flex-wrap:wrap}
  .gmail-attachment-file-actions{width:100%;padding-left:48px}
 }
+
+.gmail-thread-attachments-label{width:100%;font-size:11px;font-weight:650;color:#778397;letter-spacing:.02em}
