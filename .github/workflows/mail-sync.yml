@@ -6,6 +6,12 @@ on:
     # The worker checks the user's 08:00, 12:00 and 17:00 Asia/Kolkata sync slots.
     - cron: "*/5 * * * *"
   workflow_dispatch:
+    inputs:
+      send_only:
+        description: "Process only approved outgoing emails immediately"
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - main
@@ -54,6 +60,9 @@ jobs:
       - name: Install backend dependencies
         if: steps.secrets.outputs.configured == 'true'
         run: pip install -r requirements.txt
+      - name: Process approved outgoing emails immediately
+        if: steps.secrets.outputs.configured == 'true' && inputs.send_only == true
+        run: python -m app.worker --send-once
       - name: Run scheduled slot check and process queued mailbox jobs
-        if: steps.secrets.outputs.configured == 'true'
+        if: steps.secrets.outputs.configured == 'true' && inputs.send_only != true
         run: python -m app.worker --scheduled-once
