@@ -512,7 +512,7 @@ def messages(
                         "model": settings.gemini_model, "store": False,
                         "input": (
                             "Convert the user's natural-language email search into a compact JSON object only. "
-                            "Schema: {\\"terms\\":[up to 6 short distinctive keywords or phrases],"
+                            "Return a JSON object with keys terms (an array of up to six short distinctive search terms), sender (email address or name, otherwise empty), after (YYYY-MM-DD or empty), and before (YYYY-MM-DD or empty). "
                             "\\"sender\\":\\"email/name or empty\\","
                             "\\"after\\":\\"YYYY-MM-DD or empty\\","
                             "\\"before\\":\\"YYYY-MM-DD or empty\\"}. "
