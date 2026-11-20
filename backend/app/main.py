@@ -473,7 +473,7 @@ def sync_jobs(user: User = Depends(current_user), db: Session = Depends(get_db))
     rows = db.scalars(select(SyncJob).where(SyncJob.user_id == user.id).order_by(desc(SyncJob.id)).limit(30)).all()
     return [{
         "id": x.id, "account_id": x.account_id, "status": x.status,
-        "details": x.details, "created_at": x.created_at
+        "details": x.details, "attempt_count": x.attempt_count, "created_at": x.created_at, "updated_at": x.updated_at
     } for x in rows]
 
 def _email_address(value: str) -> str:
