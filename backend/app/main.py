@@ -1373,11 +1373,13 @@ def send_outbound_draft(
     # mailbox worker. This keeps provider SMTP off free web hosts that block SMTP.
     draft.status = "queued"
     db.commit()
+    worker_triggered = _try_trigger_mailbox_worker()
     return {
         "status": "queued",
+        "worker_triggered": worker_triggered,
         "provider_accepted": False,
         "delivery_confirmed": False,
-        "note": "Your approved email is queued for secure background delivery. Check the draft status for the provider result.",
+        "note": "Your email is queued. The background worker has been triggered when available; otherwise the scheduled worker will pick it up.",
     }
 
 
@@ -1483,11 +1485,13 @@ def send_draft(
     # mailbox worker. This keeps provider SMTP off free web hosts that block SMTP.
     draft.status = "queued"
     db.commit()
+    worker_triggered = _try_trigger_mailbox_worker()
     return {
         "status": "queued",
+        "worker_triggered": worker_triggered,
         "provider_accepted": False,
         "delivery_confirmed": False,
-        "note": "Your approved reply is queued for secure background delivery. Check the draft status for the provider result.",
+        "note": "Your reply is queued. The background worker has been triggered when available; otherwise the scheduled worker will pick it up.",
     }
 
 
@@ -1616,11 +1620,13 @@ def send_forward_draft(
     # it from a runner that supports the provider's SMTP requirements.
     draft.status = "queued"
     db.commit()
+    worker_triggered = _try_trigger_mailbox_worker()
     return {
         "status": "queued",
+        "worker_triggered": worker_triggered,
         "provider_accepted": False,
         "delivery_confirmed": False,
-        "note": "Your approved forward is queued for secure background delivery. Check the draft status for the provider result.",
+        "note": "Your forward is queued. The background worker has been triggered when available; otherwise the scheduled worker will pick it up.",
     }
 
 
