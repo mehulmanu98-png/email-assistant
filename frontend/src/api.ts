@@ -10,6 +10,8 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return data as T;
 }
 export const api = {
+  health: () => request<any>("/health"),
+  emailAIAssist: (id:number,data:any) => request<any>("/messages/"+id+"/ai-assist",{method:"POST",body:JSON.stringify(data)}),
   me: () => request<{id:number; email:string}>("/auth/me"),
   login: (email:string,password:string) => request<{email:string}>("/auth/login",{method:"POST",body:JSON.stringify({email,password})}),
   logout: () => request("/auth/logout",{method:"POST"}),
