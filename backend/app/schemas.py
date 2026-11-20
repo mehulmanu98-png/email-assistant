@@ -116,3 +116,6 @@ class UserSettingsPatchIn(BaseModel):
 
 class AttachmentSummaryIn(BaseModel):
     attachment_indexes: list[int] = Field(min_length=1, max_length=10)
+
+class ActivityLogIn(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
