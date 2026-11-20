@@ -634,6 +634,70 @@ def message_thread(
     except Exception as exc:
         db.rollback()
         raise HTTPException(502, f"The source provider could not retrieve this email thread ({type(exc).__name__}).")
+    thread_messages = [{
+        "id": row.id,
+        "sender": row.sender,
+        "recipients": row.recipients,
+        "subject": row.subject,
+        "received_at": row.received_at,
+        "body_text": row.body_text,
+        "summary": row.current_summary, "attachment_summary": row.attachment_summary,
+        "is_read": row.is_read,
+        "has_attachments": row.has_attachments,
+        "is_outgoing": False,
+    } for row in rows]
+
+    # Reply/forward drafts are durable records before the provider worker runs.
+    # Include them in the thread immediately so a queued send appears without
+    # waiting for a later iCloud/Gmail mailbox sync.
+    row_ids = [row.id for row in rows]
+    known_provider_ids = {row.provider_message_id for row in rows if row.provider_message_id}
+    if row_ids:
+        reply_rows = db.scalars(select(ReplyDraft).where(
+            ReplyDraft.user_id == user.id,
+            ReplyDraft.message_id.in_(row_ids),
+            ReplyDraft.status.in_(["queued", "sending", "sent", "send_uncertain", "failed"]),
+        )).all()
+        for draft in reply_rows:
+            if draft.provider_sent_id and draft.provider_sent_id in known_provider_ids:
+                continue
+            source_row = next((row for row in rows if row.id == draft.message_id), source)
+            source_account = db.get(EmailAccount, source_row.account_id) if source_row else account
+            thread_messages.append({
+                "id": f"reply-draft-{draft.id}",
+                "sender": source_account.email if source_account else account.email,
+                "recipients": ", ".join((draft.to_json or []) + (draft.cc_json or [])),
+                "subject": draft.subject,
+                "received_at": draft.updated_at,
+                "body_text": draft.body,
+                "summary": "", "attachment_summary": "",
+                "is_read": True, "has_attachments": False,
+                "is_outgoing": True, "send_status": draft.status,
+            })
+
+        forward_rows = db.scalars(select(ForwardDraft).where(
+            ForwardDraft.user_id == user.id,
+            ForwardDraft.message_id.in_(row_ids),
+            ForwardDraft.status.in_(["queued", "sending", "sent", "send_uncertain", "failed"]),
+        )).all()
+        for draft in forward_rows:
+            if draft.provider_sent_id and draft.provider_sent_id in known_provider_ids:
+                continue
+            source_row = next((row for row in rows if row.id == draft.message_id), source)
+            source_account = db.get(EmailAccount, source_row.account_id) if source_row else account
+            thread_messages.append({
+                "id": f"forward-draft-{draft.id}",
+                "sender": source_account.email if source_account else account.email,
+                "recipients": ", ".join((draft.to_json or []) + (draft.cc_json or [])),
+                "subject": draft.subject,
+                "received_at": draft.updated_at,
+                "body_text": draft.body,
+                "summary": "", "attachment_summary": "",
+                "is_read": True, "has_attachments": False,
+                "is_outgoing": True, "send_status": draft.status,
+            })
+
+    thread_messages.sort(key=lambda item: item.get("received_at") or datetime.min.replace(tzinfo=timezone.utc))
     return {
         "message_id": source.id,
         "provider": account.provider,
@@ -641,19 +705,9 @@ def message_thread(
         "provider_scan_complete": provider_scan_complete,
         "partial_reasons": partial_reasons,
         "imported_messages": imported_count,
-        "message_count": len(rows),
+        "message_count": len(thread_messages),
         "read_state_changed": False,
-        "messages": [{
-            "id": row.id,
-            "sender": row.sender,
-            "recipients": row.recipients,
-            "subject": row.subject,
-            "received_at": row.received_at,
-            "body_text": row.body_text,
-            "summary": row.current_summary, "attachment_summary": row.attachment_summary,
-            "is_read": row.is_read,
-            "has_attachments": row.has_attachments,
-        } for row in rows],
+        "messages": thread_messages,
     }
 
 
@@ -1123,6 +1177,66 @@ def outbound_draft_out(draft: OutboundDraft, account: EmailAccount | None = None
         "updated_at": draft.updated_at,
         "from_account": account.email if account else None,
     }
+
+
+@app.get("/api/sent")
+def list_sent_items(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Return all outgoing messages, including replies and forwards, in one Sent view."""
+    visible_statuses = ["queued", "sending", "sent", "send_uncertain", "failed"]
+    output = []
+
+    replies = db.scalars(select(ReplyDraft).where(
+        ReplyDraft.user_id == user.id,
+        ReplyDraft.status.in_(visible_statuses),
+    ).order_by(desc(ReplyDraft.updated_at)).limit(100)).all()
+    for draft in replies:
+        source = db.get(EmailMessage, draft.message_id)
+        account = db.get(EmailAccount, source.account_id) if source else None
+        output.append({
+            "id": f"reply-{draft.id}", "draft_id": draft.id, "kind": "reply",
+            "source_message_id": draft.message_id, "account_id": account.id if account else None,
+            "from_account": account.email if account else None,
+            "to": draft.to_json or [], "cc": draft.cc_json or [], "bcc": draft.bcc_json or [],
+            "subject": draft.subject, "body": draft.body, "status": draft.status,
+            "provider_sent_id": draft.provider_sent_id,
+            "created_at": draft.updated_at, "updated_at": draft.updated_at,
+        })
+
+    forwards = db.scalars(select(ForwardDraft).where(
+        ForwardDraft.user_id == user.id,
+        ForwardDraft.status.in_(visible_statuses),
+    ).order_by(desc(ForwardDraft.updated_at)).limit(100)).all()
+    for draft in forwards:
+        source = db.get(EmailMessage, draft.message_id)
+        account = db.get(EmailAccount, source.account_id) if source else None
+        output.append({
+            "id": f"forward-{draft.id}", "draft_id": draft.id, "kind": "forward",
+            "source_message_id": draft.message_id, "account_id": account.id if account else None,
+            "from_account": account.email if account else None,
+            "to": draft.to_json or [], "cc": draft.cc_json or [], "bcc": draft.bcc_json or [],
+            "subject": draft.subject, "body": draft.body, "status": draft.status,
+            "provider_sent_id": draft.provider_sent_id,
+            "created_at": draft.updated_at, "updated_at": draft.updated_at,
+        })
+
+    outbound = db.scalars(select(OutboundDraft).where(
+        OutboundDraft.user_id == user.id,
+        OutboundDraft.status.in_(visible_statuses),
+    ).order_by(desc(OutboundDraft.updated_at)).limit(100)).all()
+    for draft in outbound:
+        account = db.get(EmailAccount, draft.account_id)
+        output.append({
+            "id": f"outbound-{draft.id}", "draft_id": draft.id, "kind": "outbound",
+            "source_message_id": None, "account_id": draft.account_id,
+            "from_account": account.email if account else None,
+            "to": draft.to_json or [], "cc": draft.cc_json or [], "bcc": draft.bcc_json or [],
+            "subject": draft.subject, "body": draft.body, "status": draft.status,
+            "provider_sent_id": draft.provider_sent_id,
+            "created_at": draft.created_at, "updated_at": draft.updated_at,
+        })
+
+    output.sort(key=lambda item: item.get("updated_at") or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+    return output[:200]
 
 
 def _owned_connected_account(db: Session, user_id: int, account_id: int):
