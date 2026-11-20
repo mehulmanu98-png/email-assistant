@@ -513,9 +513,6 @@ def messages(
                         "input": (
                             "Convert the user's natural-language email search into a compact JSON object only. "
                             "Return a JSON object with keys terms (an array of up to six short distinctive search terms), sender (email address or name, otherwise empty), after (YYYY-MM-DD or empty), and before (YYYY-MM-DD or empty). "
-                            "\\"sender\\":\\"email/name or empty\\","
-                            "\\"after\\":\\"YYYY-MM-DD or empty\\","
-                            "\\"before\\":\\"YYYY-MM-DD or empty\\"}. "
                             f"Interpret relative dates using current date {datetime.now(timezone.utc).date().isoformat()}. Never invent a sender or date. "
                             "Search request: " + q[:500]
                         )
