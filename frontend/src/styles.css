@@ -316,3 +316,5 @@
 }
 
 .gmail-thread-attachments-label{width:100%;font-size:11px;font-weight:650;color:#778397;letter-spacing:.02em}
+
+.thread-send-status{display:block;margin-top:4px;font-size:10px;font-weight:750;letter-spacing:.06em;color:#5269c8;text-align:right}
