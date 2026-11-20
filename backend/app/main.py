@@ -129,7 +129,7 @@ def record_activity(data: ActivityLogIn, user: User = Depends(current_user), db:
 
 @app.get("/api/activity")
 def list_activity(user: User = Depends(current_user), db: Session = Depends(get_db)):
-    rows = db.scalars(select(ActivityLog).where(ActivityLog.user_id == user.id).order_by(desc(ActivityLog.id)).limit(200)).all()
+    rows = db.scalars(select(ActivityLog).where(ActivityLog.user_id == user.id).order_by(desc(ActivityLog.id)).limit(500)).all()
     return [{"id": row.id, "category": row.category, "severity": row.severity, "message": row.message, "created_at": row.created_at} for row in rows]
 
 
