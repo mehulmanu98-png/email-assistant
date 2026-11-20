@@ -7,7 +7,7 @@ import httpx
 from sqlalchemy import select
 
 from .config import settings
-from .models import EmailMessage, EmailAccount
+from .models import EmailMessage, EmailAccount, ActivityLog
 from .providers import list_icloud_attachments, get_icloud_attachment
 from .gmail import list_gmail_attachments, get_gmail_attachment
 
@@ -137,7 +137,13 @@ def enrich_synced_messages(db, account: EmailAccount, batch_size: int = 20) -> d
             db.commit()
             processed += 1
         except Exception as exc:
-            db.rollback()
             failed += 1
-            log.warning("Background email enrichment failed for message %s (%s)", row.id, type(exc).__name__)
+            message_id = row.id
+            db.rollback()
+            db.add(ActivityLog(
+                user_id=account.user_id, category="ai_enrichment", severity="error",
+                message=f"Automatic summary generation failed for email record #{message_id} ({type(exc).__name__}).",
+            ))
+            db.commit()
+            log.warning("Background email enrichment failed for message %s (%s)", message_id, type(exc).__name__)
     return {"processed": processed, "failed": failed, "remaining": max(0, len(rows) - processed - failed)}
