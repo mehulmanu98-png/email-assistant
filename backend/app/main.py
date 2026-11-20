@@ -645,6 +645,12 @@ def email_ai_assist(message_id: int, data: EmailAIAssistIn,
         result_text = "\n".join(output).strip()
         if not result_text:
             raise HTTPException(502, "Gemini returned an empty response. Please try again.")
+        if data.mode == "summary":
+            source.current_summary = result_text
+            db.commit()
+        elif data.mode == "thread_summary":
+            source.thread_summary = result_text
+            db.commit()
         return {
             "text": result_text,
             "mode": data.mode,
