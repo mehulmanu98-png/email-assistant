@@ -48,6 +48,13 @@ class DraftIn(BaseModel):
     subject: str = Field(default="", max_length=998)
     body: str = Field(default="", max_length=100000)
 
+class EmailAIAssistIn(BaseModel):
+    mode: Literal["draft", "rephrase", "grammar", "ask", "summary", "thread_summary"]
+    instruction: str = Field(default="", max_length=6000)
+    draft_body: str = Field(default="", max_length=30000)
+    history: list[dict] = Field(default_factory=list, max_length=12)
+
+
 class SendApprovalIn(BaseModel):
     confirm_send: bool
     expected_updated_at: datetime
