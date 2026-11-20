@@ -32,7 +32,7 @@ function Login({onLogin}:{onLogin:(email:string,password:string)=>Promise<void>}
 export default function App(){
  const [user,setUser]=useState<any>(null),[view,setView]=useState<View>("Inbox");
  const [messages,setMessages]=useState<any[]>([]),[accounts,setAccounts]=useState<any[]>([]),[followups,setFollowups]=useState<any[]>([]),[tasks,setTasks]=useState<any[]>([]),[syncJobs,setSyncJobs]=useState<any[]>([]),[settingsData,setSettingsData]=useState<any>({sync_times:["08:00","12:00","17:00"],timezone:"Asia/Kolkata"}),[syncTimesText,setSyncTimesText]=useState("08:00, 12:00, 17:00");
- const [selected,setSelected]=useState<any>(null),[search,setSearch]=useState(""),[debouncedSearch,setDebouncedSearch]=useState(""),[notice,setNotice]=useState(""),[busy,setBusy]=useState(false),[inboxFilter,setInboxFilter]=useState<"all"|"unread"|"starred"|"sent"|"trash">("all"),[blockTarget,setBlockTarget]=useState<any>(null);
+ const [selected,setSelected]=useState<any>(null),[search,setSearch]=useState(""),[debouncedSearch,setDebouncedSearch]=useState(""),[notice,setNoticeState]=useState(""),[activityLogs,setActivityLogs]=useState<any[]>([]),[busy,setBusy]=useState(false),[inboxFilter,setInboxFilter]=useState<"all"|"unread"|"starred"|"sent"|"trash">("all"),[blockTarget,setBlockTarget]=useState<any>(null);
  const [showCompose,setShowCompose]=useState(false),[composeBusy,setComposeBusy]=useState(false),[outboundDraft,setOutboundDraft]=useState<any>(null),[savedOutboundDrafts,setSavedOutboundDrafts]=useState<any[]>([]);
  const [outboundFiles,setOutboundFiles]=useState<any[]>([]);
  const [outboundFromId,setOutboundFromId]=useState(""),[outboundTo,setOutboundTo]=useState(""),[outboundCc,setOutboundCc]=useState(""),[outboundBcc,setOutboundBcc]=useState(""),[outboundSubject,setOutboundSubject]=useState(""),[outboundBody,setOutboundBody]=useState("");
@@ -52,14 +52,15 @@ export default function App(){
  const [followupFilter,setFollowupFilter]=useState<"all"|"action_required"|"awaiting_response">("all");
  const [editingFollowup,setEditingFollowup]=useState<any>(null),[snoozingFollowup,setSnoozingFollowup]=useState<any>(null),[snoozeUntil,setSnoozeUntil]=useState("");
  const [addingFollowup,setAddingFollowup]=useState<any>(null);
+ const setNotice=(message:string)=>{setNoticeState(message);if(message)void api.logActivity(message).catch(()=>{});};
  const loadMessages=useCallback(async()=>{
   try{setMessages(await api.messages(debouncedSearch,inboxFilter==="trash"?"trash":"inbox"))}
   catch(err){setNotice(err instanceof Error?err.message:"Could not load emails")}
  },[debouncedSearch,inboxFilter]);
  const refresh=useCallback(async()=>{
   setBusy(true);
-  try{const [a,f,t,c,s,j,devices,commands,outbound,health]=await Promise.all([api.accounts(),api.followups(),api.tasks(),api.conversations(),api.settings(),api.syncJobs(),api.appleDevices(),api.appleCommands(),api.outboundDrafts(),api.health()]);
-   setSavedOutboundDrafts(outbound);setAiReady(!!health.ai_ready);setAccounts(a);setFollowups(f);setTasks(t);setSyncJobs(j);setConversations(c);setSettingsData(s);setSyncTimesText(s.sync_times.join(", "));setAppleDevices(devices);setAppleCommands(commands);
+  try{const [a,f,t,c,s,j,devices,commands,outbound,health,logs]=await Promise.all([api.accounts(),api.followups(),api.tasks(),api.conversations(),api.settings(),api.syncJobs(),api.appleDevices(),api.appleCommands(),api.outboundDrafts(),api.health(),api.activityLogs()]);
+   setSavedOutboundDrafts(outbound);setActivityLogs(logs);setAiReady(!!health.ai_ready);setAccounts(a);setFollowups(f);setTasks(t);setSyncJobs(j);setConversations(c);setSettingsData(s);setSyncTimesText(s.sync_times.join(", "));setAppleDevices(devices);setAppleCommands(commands);
   }catch(err){setNotice(err instanceof Error?err.message:"Refresh failed")}finally{setBusy(false)}
  },[]);
  useEffect(()=>{const timer=window.setTimeout(()=>setDebouncedSearch(search),400);return()=>window.clearTimeout(timer)},[search]);
@@ -126,6 +127,7 @@ export default function App(){
  const visibleMessages=messages.filter(m=>inboxFilter==="all"||(inboxFilter==="unread"?!m.is_read:inboxFilter==="starred"?!!m.is_starred:inboxFilter==="trash"));const visibleSent=savedOutboundDrafts.filter((m:any)=>["sent","queued","sending","send_uncertain","failed"].includes(m.status));
  const visibleFollowups=followups.filter((f:any)=>followupFilter==="all"||f.status===followupFilter);
  const activityEntries=[
+  ...activityLogs.map((x:any)=>({id:"event-"+x.id,type:x.category==="email"?"Email activity":"Workspace activity",title:x.message,detail:"",status:x.severity==="error"?"failed":"completed",error:x.severity==="error"?x.message:"",at:x.created_at})),
   ...syncJobs.map((x:any)=>({id:"sync-"+x.id,type:"Mailbox sync",title:accounts.find((a:any)=>a.id===x.account_id)?.email||"Email account",detail:x.details||"Mailbox sync",status:x.status,error:x.status==="failed"?x.details:"",at:x.updated_at||x.created_at})),
   ...appleCommands.map((x:any)=>({id:"apple-"+x.id,type:x.command_type==="note"?"Apple Note":"Apple Reminder",title:x.payload?.title||"Apple action",detail:x.error_message||x.status.replaceAll("_"," "),status:x.status,error:x.status==="failed"?x.error_message:"",at:x.completed_at||x.created_at})),
   ...tasks.map((x:any)=>({id:"task-"+x.id,type:"AI task",title:x.title,detail:x.blocker||x.instructions||"",status:x.status,error:["failed","blocked"].includes(x.status)?x.blocker:"",at:x.updated_at||x.created_at})),
