@@ -13,7 +13,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:8080"
     timezone: str = "Asia/Kolkata"
     max_active_tasks: int = 3
-    ai_provider: str = "disabled"
+    ai_provider: str = "gemini"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:8080/api/oauth/gmail/callback"
