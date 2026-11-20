@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import select, or_
 from sqlalchemy.exc import IntegrityError
 from .db import SessionLocal, init_db
-from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease, ReplyDraft, ForwardDraft, OutboundDraft, EmailMessage
+from .models import SyncJob, EmailAccount, ScheduleRun, UserSettings, WorkerLease, ReplyDraft, ForwardDraft, OutboundDraft, EmailMessage, ActivityLog
 from .providers import sync_icloud, send_icloud, send_icloud_forward
 from .gmail import sync_gmail, send_gmail, send_gmail_forward
 from .conversation_sync import append_linked_email_messages
@@ -112,6 +112,8 @@ def run_once() -> bool:
         if not account or account.connection_status == "disconnected":
             job.status = "failed"
             job.details = "Account is disconnected."
+            db.add(ActivityLog(user_id=job.user_id, category="mailbox_sync", severity="error",
+                               message=f"Mailbox sync job #{job.id} failed: account is disconnected."))
             db.commit()
             return True
         try:
@@ -143,6 +145,11 @@ def run_once() -> bool:
                 job.details = f"Sync failed after {job.attempt_count} attempts ({type(exc).__name__}). Check account connection and server configuration."
                 account.connection_status = "error"
                 log.warning("Sync failed permanently for account %s (%s)", account.id, type(exc).__name__)
+        db.add(ActivityLog(
+            user_id=job.user_id, category="mailbox_sync",
+            severity="error" if job.status == "failed" else ("warning" if job.status == "queued" else "info"),
+            message=f"Mailbox sync job #{job.id} {job.status}: {job.details}",
+        ))
         db.commit()
         return True
     finally:
