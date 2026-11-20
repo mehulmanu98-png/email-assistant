@@ -39,7 +39,7 @@ from .schemas import (
 from .policy import effective_priority
 from .providers import set_icloud_read, set_icloud_starred, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
 from .gmail import set_gmail_read, set_gmail_starred, trash_gmail, send_gmail, send_gmail_forward, list_gmail_attachments, get_gmail_attachment
-from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread
+from .conversation_sync import get_email_thread_link, link_email_thread, unlink_email_thread, canonical_thread_key
 from .cloud_jobs import trigger_mailbox_worker
 
 logger = logging.getLogger("email-assistant-api")
@@ -569,13 +569,32 @@ def messages(
             ])
     rows = db.scalars(stmt.order_by(desc(EmailMessage.received_at), desc(EmailMessage.id)).limit(500)).all()
     blocked = _blocked_addresses(db, user.id)
-    return [{
-        "id": x.id, "account_id": x.account_id, "sender": x.sender,
-        "recipients": x.recipients, "subject": x.subject, "received_at": x.received_at,
-        "snippet": x.snippet, "summary": x.current_summary, "thread_summary": x.thread_summary,
-        "priority": x.priority, "priority_reason": x.priority_reason,
-        "is_read": x.is_read, "is_starred": x.is_starred, "has_attachments": x.has_attachments
-    } for x in rows if not any(address and address in x.sender.lower() for address in blocked)]
+    grouped = {}
+    for row in rows:
+        if any(address and address in row.sender.lower() for address in blocked):
+            continue
+        account = db.get(EmailAccount, row.account_id)
+        thread_key = canonical_thread_key(db, account, row) if account else (row.thread_key or row.provider_message_id)
+        key = (row.account_id, thread_key)
+        grouped.setdefault(key, []).append(row)
+    result = []
+    for (account_id, thread_key), thread_rows in grouped.items():
+        latest = thread_rows[0]
+        result.append({
+            "id": latest.id, "account_id": account_id, "thread_key": thread_key,
+            "thread_count": len(thread_rows), "thread_ids": [item.id for item in thread_rows],
+            "unread_count": sum(1 for item in thread_rows if not item.is_read),
+            "sender": latest.sender, "recipients": latest.recipients,
+            "subject": latest.subject, "received_at": latest.received_at,
+            "snippet": latest.snippet, "summary": latest.current_summary,
+            "attachment_summary": latest.attachment_summary,
+            "thread_summary": latest.thread_summary,
+            "priority": latest.priority, "priority_reason": latest.priority_reason,
+            "is_read": all(item.is_read for item in thread_rows),
+            "is_starred": any(item.is_starred for item in thread_rows),
+            "has_attachments": any(item.has_attachments for item in thread_rows),
+        })
+    return sorted(result, key=lambda item: (item["received_at"] or datetime.min), reverse=True)
 
 @app.get("/api/messages/{message_id}")
 def message_detail(message_id: int, user: User = Depends(current_user), db: Session = Depends(get_db)):
@@ -589,7 +608,7 @@ def message_detail(message_id: int, user: User = Depends(current_user), db: Sess
         "id": row.id, "account_id": row.account_id, "account_email": account.email if account else "",
         "sender": row.sender, "recipients": row.recipients, "subject": row.subject,
         "received_at": row.received_at, "body_text": row.body_text,
-        "summary": row.current_summary, "thread_summary": row.thread_summary,
+        "summary": row.current_summary, "attachment_summary": row.attachment_summary, "thread_summary": row.thread_summary,
         "is_read": row.is_read, "is_starred": row.is_starred, "has_attachments": row.has_attachments
     }
 
