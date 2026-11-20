@@ -4,6 +4,7 @@ import hmac
 import secrets
 import re
 import logging
+import json
 from datetime import datetime, timedelta, timezone
 from email.utils import getaddresses
 from urllib.parse import urlencode, quote
@@ -498,12 +499,58 @@ def messages(
     if unread:
         stmt = stmt.where(EmailMessage.is_read.is_(False))
     if q:
-        needle = "%" + q[:200] + "%"
-        stmt = stmt.where(
-            EmailMessage.subject.ilike(needle) |
-            EmailMessage.sender.ilike(needle) |
-            EmailMessage.body_text.ilike(needle)
-        )
+        search_terms = [q[:200]]
+        sender_filter = ""
+        after_date = ""
+        before_date = ""
+        if settings.gemini_api_key and folder == "inbox":
+            try:
+                parsed = httpx.post(
+                    "https://generativelanguage.googleapis.com/v1beta/interactions",
+                    headers={"x-goog-api-key": settings.gemini_api_key, "Content-Type": "application/json"},
+                    json={
+                        "model": settings.gemini_model, "store": False,
+                        "input": (
+                            "Convert the user's natural-language email search into a compact JSON object only. "
+                            "Schema: {\\"terms\\":[up to 6 short distinctive keywords or phrases],"
+                            "\\"sender\\":\\"email/name or empty\\","
+                            "\\"after\\":\\"YYYY-MM-DD or empty\\","
+                            "\\"before\\":\\"YYYY-MM-DD or empty\\"}. "
+                            "Interpret relative dates using current date 2026-11-20. Never invent a sender or date. "
+                            "Search request: " + q[:500]
+                        )
+                    }, timeout=20.0
+                )
+                if parsed.status_code < 400:
+                    p = parsed.json()
+                    text_out = "\\n".join(part.get("text", "") for step in p.get("steps", []) if step.get("type") == "model_output" for part in step.get("content", []) if part.get("type") == "text")
+                    obj = json.loads(text_out.strip().removeprefix("```json").removesuffix("```").strip())
+                    search_terms = [str(x)[:100] for x in obj.get("terms", [])[:6] if str(x).strip()] or search_terms
+                    sender_filter = str(obj.get("sender", ""))[:200]
+                    after_date = str(obj.get("after", ""))[:10]
+                    before_date = str(obj.get("before", ""))[:10]
+            except Exception as exc:
+                logger.info("AI search interpretation fallback: %s", type(exc).__name__)
+        if sender_filter:
+            stmt = stmt.where(EmailMessage.sender.ilike("%" + sender_filter + "%"))
+        if after_date:
+            try:
+                stmt = stmt.where(EmailMessage.received_at >= datetime.fromisoformat(after_date))
+            except ValueError:
+                pass
+        if before_date:
+            try:
+                stmt = stmt.where(EmailMessage.received_at < datetime.fromisoformat(before_date) + timedelta(days=1))
+            except ValueError:
+                pass
+        terms = [term for term in search_terms if term]
+        if terms:
+            stmt = stmt.where(*[
+                (EmailMessage.subject.ilike("%" + term + "%") |
+                 EmailMessage.sender.ilike("%" + term + "%") |
+                 EmailMessage.body_text.ilike("%" + term + "%"))
+                for term in terms
+            ])
     rows = db.scalars(stmt.order_by(desc(EmailMessage.received_at), desc(EmailMessage.id)).limit(500)).all()
     blocked = _blocked_addresses(db, user.id)
     return [{
