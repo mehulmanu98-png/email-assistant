@@ -262,3 +262,10 @@
 .thread-message-collapsible[open]{background:#fbfcfd}
 .thread-message-collapsible>pre{font:13px/1.6 Arial,Helvetica,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;color:#303b49;margin:12px 0 0}
 .thread-message-collapsible>.thread-recipients{font-size:10px;color:#8c95a0;margin:9px 0 0}
+
+
+.activity-log-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 12px;border:1px solid #e7ebef;border-radius:9px;background:#f9fafb;color:#344257;text-align:left}
+.activity-log-toggle>span:first-child{display:grid;gap:4px}
+.activity-log-toggle b{font-size:12px}
+.activity-log-toggle small{font-size:10px;color:#8792a0}
+.activity-log-toggle>span:last-child{display:flex;align-items:center;gap:5px;font-size:10px;font-weight:700;color:#536a88;white-space:nowrap}
