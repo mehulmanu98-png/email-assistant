@@ -49,7 +49,7 @@ class DraftIn(BaseModel):
     body: str = Field(default="", max_length=100000)
 
 class EmailAIAssistIn(BaseModel):
-    mode: Literal["draft", "rephrase", "grammar", "ask", "summary", "thread_summary"]
+    mode: Literal["draft", "rephrase", "grammar", "ask", "chat", "summary", "thread_summary"]
     instruction: str = Field(default="", max_length=6000)
     draft_body: str = Field(default="", max_length=30000)
     history: list[dict] = Field(default_factory=list, max_length=12)
