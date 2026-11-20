@@ -484,11 +484,14 @@ def _blocked_addresses(db: Session, user_id: int) -> list[str]:
 
 @app.get("/api/messages")
 def messages(
-    q: str = "", account_id: int | None = None, unread: bool = False,
+    q: str = "", account_id: int | None = None, unread: bool = False, folder: str = "inbox",
     user: User = Depends(current_user), db: Session = Depends(get_db)
 ):
+    if folder not in {"inbox", "trash"}:
+        raise HTTPException(422, "Unsupported mailbox folder.")
     stmt = select(EmailMessage).where(
-        EmailMessage.user_id == user.id, EmailMessage.is_trashed.is_(False)
+        EmailMessage.user_id == user.id,
+        EmailMessage.is_trashed.is_(True) if folder == "trash" else EmailMessage.is_trashed.is_(False)
     )
     if account_id:
         stmt = stmt.where(EmailMessage.account_id == account_id)
