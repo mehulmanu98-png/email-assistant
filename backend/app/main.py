@@ -24,7 +24,7 @@ from .db import get_db, init_db, SessionLocal
 from .models import (
     User, EmailAccount, EmailMessage, EmailActionJob, ReplyDraft, ForwardDraft, OutboundDraft, FollowUp, AITask,
     AIConversation, SyncJob, OAuthState, BlockedSender, UserSettings, LoginThrottle, AppleDevice,
-    AppleDeviceEnrollment, AppleDeviceCommand, utcnow
+    AppleDeviceEnrollment, AppleDeviceCommand, ActivityLog, utcnow
 )
 from .security import (
     hash_password, verify_password, create_access_token, current_user,
@@ -34,7 +34,7 @@ from .schemas import (
     LoginIn, AccountIn, TaskIn, TaskPriorityIn, FollowUpIn, FollowUpPatchIn,
     DraftIn, ForwardDraftIn, OutboundDraftIn, SendApprovalIn, ConversationIn, ConversationLinkIn, MessageIn,
     UserSettingsPatchIn, ReadStateIn, EmailAIAssistIn, AttachmentSummaryIn, AppleEnrollmentCreateIn, AppleDeviceEnrollIn, AppleCommandIn,
-    AppleDeviceCommandResultIn
+    AppleDeviceCommandResultIn, ActivityLogIn
 )
 from .policy import effective_priority
 from .providers import set_icloud_read, set_icloud_starred, move_icloud_to_trash, send_icloud, send_icloud_forward, list_icloud_attachments, get_icloud_attachment
@@ -113,6 +113,25 @@ def startup():
     import threading
     for pending_id in pending_ids:
         threading.Thread(target=_run_email_action_job, args=(pending_id,), daemon=True).start()
+
+@app.post("/api/activity")
+def record_activity(data: ActivityLogIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    message = data.message.strip()[:2000]
+    lowered = message.lower()
+    severity = "error" if any(term in lowered for term in ("failed", "could not", "error", "unavailable", "uncertain")) else "info"
+    category = "email" if any(term in lowered for term in ("email", "mail", "trash", "sender", "reply", "send")) else "system"
+    row = ActivityLog(user_id=user.id, category=category, severity=severity, message=message)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {"id": row.id, "category": row.category, "severity": row.severity, "message": row.message, "created_at": row.created_at}
+
+
+@app.get("/api/activity")
+def list_activity(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(ActivityLog).where(ActivityLog.user_id == user.id).order_by(desc(ActivityLog.id)).limit(200)).all()
+    return [{"id": row.id, "category": row.category, "severity": row.severity, "message": row.message, "created_at": row.created_at} for row in rows]
+
 
 @app.get("/api/health")
 def health(db: Session = Depends(get_db)):
