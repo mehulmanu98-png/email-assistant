@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     cloud_project_id: str = ""
     cloud_region: str = ""
     mail_worker_job: str = ""
+    github_worker_token: str = ""
+    github_repository: str = "mehulmanu98-png/email-assistant"
+    github_worker_ref: str = "main"
 
 @lru_cache
 def get_settings() -> Settings:
