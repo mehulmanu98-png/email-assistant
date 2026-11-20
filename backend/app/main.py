@@ -516,7 +516,7 @@ def messages(
                             "\\"sender\\":\\"email/name or empty\\","
                             "\\"after\\":\\"YYYY-MM-DD or empty\\","
                             "\\"before\\":\\"YYYY-MM-DD or empty\\"}. "
-                            "Interpret relative dates using current date {datetime.now(timezone.utc).date().isoformat()}. Never invent a sender or date. "
+                            f"Interpret relative dates using current date {datetime.now(timezone.utc).date().isoformat()}. Never invent a sender or date. "
                             "Search request: " + q[:500]
                         )
                     }, timeout=20.0
