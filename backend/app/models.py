@@ -55,6 +55,7 @@ class EmailMessage(Base):
     snippet: Mapped[str] = mapped_column(Text, default="")
     body_text: Mapped[str] = mapped_column(Text, default="")
     current_summary: Mapped[str] = mapped_column(Text, default="")
+    attachment_summary: Mapped[str] = mapped_column(Text, default="")
     thread_summary: Mapped[str] = mapped_column(Text, default="")
     priority: Mapped[str] = mapped_column(String(20), default="normal")
     priority_reason: Mapped[str] = mapped_column(Text, default="")
