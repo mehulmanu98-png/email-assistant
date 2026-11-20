@@ -51,3 +51,29 @@ def test_cloud_worker_trigger_is_disabled_without_cloud_configuration(monkeypatc
 
     monkeypatch.setattr(cloud_jobs.httpx, "get", unexpected_request)
     assert cloud_jobs.trigger_mailbox_worker() is False
+
+
+
+def test_github_actions_fallback_dispatches_send_only_run(monkeypatch):
+    monkeypatch.setattr(cloud_jobs.settings, "cloud_project_id", "")
+    monkeypatch.setattr(cloud_jobs.settings, "cloud_region", "")
+    monkeypatch.setattr(cloud_jobs.settings, "mail_worker_job", "")
+    monkeypatch.setattr(cloud_jobs.settings, "github_worker_token", "github-test-token")
+    monkeypatch.setattr(cloud_jobs.settings, "github_repository", "owner/email-assistant")
+    monkeypatch.setattr(cloud_jobs.settings, "github_worker_ref", "main")
+
+    calls = {}
+
+    def fake_post(url, json=None, headers=None, timeout=None, **kwargs):
+        calls.update({"url": url, "json": json, "headers": headers, "timeout": timeout})
+        return httpx.Response(204, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(cloud_jobs.httpx, "post", fake_post)
+
+    assert cloud_jobs.trigger_mailbox_worker() is True
+    assert calls["url"] == (
+        "https://api.github.com/repos/owner/email-assistant/"
+        "actions/workflows/mail-sync.yml/dispatches"
+    )
+    assert calls["json"] == {"ref": "main", "inputs": {"send_only": "true"}}
+    assert calls["headers"]["Authorization"] == "Bearer github-test-token"
