@@ -113,3 +113,6 @@ class ConversationLinkIn(BaseModel):
 class UserSettingsPatchIn(BaseModel):
     sync_times: list[str] = Field(min_length=1, max_length=6)
     timezone: str = Field(min_length=1, max_length=64)
+
+class AttachmentSummaryIn(BaseModel):
+    attachment_indexes: list[int] = Field(min_length=1, max_length=10)
