@@ -14,6 +14,7 @@ from .providers import sync_icloud, send_icloud, send_icloud_forward
 from .gmail import sync_gmail, send_gmail, send_gmail_forward
 from .conversation_sync import append_linked_email_messages
 from .config import settings
+from .ai_enrichment import enrich_synced_messages
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("email-assistant-worker")
@@ -121,10 +122,13 @@ def run_once() -> bool:
             else:
                 raise RuntimeError("Unsupported provider.")
             linked_updates = append_linked_email_messages(db, account.id)
+            enrichment = enrich_synced_messages(db, account, batch_size=20)
             job.status = "completed"
             job.details = (
                 f"Imported {count} new messages; appended {linked_updates} new message(s) "
-                "to linked Email Assistant conversations."
+                f"to linked conversations; AI summaries processed {enrichment.get('processed', 0)}, "
+                f"failed {enrichment.get('failed', 0)}."
+                + (f" AI skipped: {enrichment['skipped']}." if enrichment.get("skipped") else "")
             )
         except Exception as exc:
             if job.attempt_count < MAX_SYNC_ATTEMPTS:
