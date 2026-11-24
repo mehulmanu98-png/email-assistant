@@ -396,8 +396,13 @@ def send_icloud(account: EmailAccount, to: list[str], cc: list[str], bcc: list[s
     message["Subject"] = subject
     message["Message-ID"] = make_msgid()
     if source_message and not source_message.provider_message_id.startswith(("icloud-seq-", "icloud-uid")):
+        # RFC 5322 threading: reply to the exact source message and preserve the
+        # conversation's ancestry without duplicating IDs already in References.
         message["In-Reply-To"] = source_message.provider_message_id
-        message["References"] = (source_message.thread_key + " " + source_message.provider_message_id).strip()
+        reference_ids = re.findall(r"<[^<>\\s]+>", source_message.thread_key or "")
+        if source_message.provider_message_id not in reference_ids:
+            reference_ids.append(source_message.provider_message_id)
+        message["References"] = " ".join(dict.fromkeys(reference_ids))
     message.set_content(body)
     for item in attachments or []:
         raw = base64.b64decode(item.get("data_base64", ""), validate=True)
