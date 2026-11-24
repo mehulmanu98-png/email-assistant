@@ -196,5 +196,5 @@ def test_icloud_reply_sets_exact_threading_headers(monkeypatch):
     sent_message = message_from_bytes(sent["raw"])
     assert sent_message["Message-ID"] == provider_id
     assert sent_message["In-Reply-To"] == "<original@example.com>"
-    assert sent_message["References"] == "<root@example.com> <original@example.com> <original@example.com>"
+    assert sent_message["References"] == "<root@example.com> <original@example.com>"
     assert sent["to_addrs"] == ["tony@example.com", "colleague@example.com"]
