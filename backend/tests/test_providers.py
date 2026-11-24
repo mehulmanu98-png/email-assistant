@@ -146,3 +146,55 @@ def test_icloud_read_state_fails_when_seen_flag_is_not_confirmed(monkeypatch):
 
     with pytest.raises(RuntimeError, match="different read state"):
         providers.set_icloud_read(account, "<mail@example.com>", True)
+
+
+
+def test_icloud_reply_sets_exact_threading_headers(monkeypatch):
+    from email import message_from_bytes
+    from app import providers
+    from app.models import EmailAccount, EmailMessage as StoredMessage
+
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, *args, **kwargs): pass
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def ehlo(self): pass
+        def starttls(self, context=None): pass
+        def login(self, user, password): pass
+        def send_message(self, message, from_addr=None, to_addrs=None):
+            sent["raw"] = message.as_bytes()
+            sent["to_addrs"] = to_addrs
+            return {}
+
+    class FakeFernet:
+        def decrypt(self, value): return b"app-password"
+
+    monkeypatch.setattr(providers, "_connect", lambda account: (None, "unused"))
+    monkeypatch.setattr(providers, "get_fernet", lambda: FakeFernet())
+    monkeypatch.setattr(providers.smtplib, "SMTP", FakeSMTP)
+
+    account = EmailAccount(
+        id=1, user_id=1, provider="icloud", email="owner@example.com",
+        encrypted_secret="encrypted", connection_status="connected"
+    )
+    source = StoredMessage(
+        id=7, user_id=1, account_id=1,
+        provider_message_id="<original@example.com>",
+        thread_key="<root@example.com> <original@example.com>",
+        sender="Tony <tony@example.com>",
+        recipients="owner@example.com, colleague@example.com",
+        subject="答复: Machine enquiry",
+        body_text="Original message",
+    )
+
+    provider_id = providers.send_icloud(
+        account, ["tony@example.com"], ["colleague@example.com"], [],
+        "答复: Machine enquiry", "Thanks", source
+    )
+    sent_message = message_from_bytes(sent["raw"])
+    assert sent_message["Message-ID"] == provider_id
+    assert sent_message["In-Reply-To"] == "<original@example.com>"
+    assert sent_message["References"] == "<root@example.com> <original@example.com>"
+    assert sent["to_addrs"] == ["tony@example.com", "colleague@example.com"]

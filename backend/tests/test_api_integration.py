@@ -1120,3 +1120,14 @@ def test_private_api_responses_are_not_cacheable_and_include_security_headers(mo
         unauthenticated = client.get("/api/messages")
         assert unauthenticated.status_code == 401
         assert unauthenticated.headers["cache-control"] == "private, no-store, max-age=0"
+
+
+
+def test_reply_subject_preserves_existing_reply_prefixes():
+    from app.main import _reply_subject
+
+    assert _reply_subject("Enquiry about the machine") == "Re: Enquiry about the machine"
+    assert _reply_subject("Re: Enquiry about the machine") == "Re: Enquiry about the machine"
+    assert _reply_subject("答复: Enquiry about the machine") == "答复: Enquiry about the machine"
+    assert _reply_subject("回复: Re: Enquiry about the machine") == "回复: Re: Enquiry about the machine"
+    assert _reply_subject("") == "Re:"

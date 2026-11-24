@@ -500,6 +500,18 @@ def _email_address(value: str) -> str:
     addresses = getaddresses([value or ""])
     return addresses[0][1].lower() if addresses else ""
 
+
+def _reply_subject(original_subject: str) -> str:
+    """Keep an existing reply/forward prefix intact; otherwise add one Re: prefix."""
+    subject = (original_subject or "").strip()
+    if not subject:
+        return "Re:"
+    # Common English and Chinese reply prefixes. Do not rewrite or duplicate
+    # the original subject: clients such as Apple Mail use it for conversation grouping.
+    if re.match(r"^(?:(?:re|答复|回复|答覆)\s*:\s*)+", subject, flags=re.IGNORECASE):
+        return subject
+    return "Re: " + subject
+
 def _blocked_addresses(db: Session, user_id: int) -> list[str]:
     return [x.address.lower() for x in db.scalars(select(BlockedSender).where(BlockedSender.user_id == user_id)).all()]
 
@@ -1411,7 +1423,7 @@ def create_draft(message_id: int, user: User = Depends(current_user), db: Sessio
             addr = addr.lower()
             if addr and addr != own and addr != sender and addr not in cc_values:
                 cc_values.append(addr)
-        subject = source.subject if source.subject.lower().startswith("re:") else "Re: " + source.subject
+        subject = _reply_subject(source.subject)
         draft = ReplyDraft(
             user_id=user.id, message_id=source.id,
             to_json=to_values, cc_json=cc_values, subject=subject, body=""
