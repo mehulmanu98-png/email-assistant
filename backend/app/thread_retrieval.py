@@ -95,6 +95,7 @@ def _gmail_thread(db: Session, account: EmailAccount, source: EmailMessage):
             "received_at": received,
             "snippet": str(item.get("snippet") or parsed["body"][:240])[:500],
             "body_text": parsed["body"],
+            "body_html": parsed["body_html"],
             "is_read": "UNREAD" not in labels,
             "has_attachments": parsed["has_attachments"],
             "is_trashed": False,
@@ -224,6 +225,7 @@ def _icloud_thread(db: Session, account: EmailAccount, source: EmailMessage):
 
                         received = _received_at(parsed.get("Date"))
                         body = providers._plain_body(parsed)
+                        body_html = providers._html_body(parsed)
                         has_attachments = any(
                             part.get_filename() or part.get_content_disposition() == "attachment"
                             for part in (parsed.walk() if parsed.is_multipart() else [])
@@ -239,6 +241,7 @@ def _icloud_thread(db: Session, account: EmailAccount, source: EmailMessage):
                             "received_at": received,
                             "snippet": body[:240],
                             "body_text": body,
+                            "body_html": body_html,
                             "is_read": b"\\Seen" in metadata,
                             "has_attachments": has_attachments,
                             "is_trashed": False,
