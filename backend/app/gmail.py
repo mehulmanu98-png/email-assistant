@@ -25,7 +25,7 @@ def _clean_html(value: str) -> str:
     value = re.sub(r"(?s)<[^>]+>", " ", value)
     return re.sub(r"\s+", " ", value).strip()
 
-def _walk_parts(part: dict, texts: list[str], attachment_flag: list[bool]):
+def _walk_parts(part: dict, texts: list[str], htmls: list[str], attachment_flag: list[bool]):
     filename = part.get("filename")
     if filename:
         attachment_flag[0] = True
@@ -33,17 +33,22 @@ def _walk_parts(part: dict, texts: list[str], attachment_flag: list[bool]):
     body = part.get("body") or {}
     if mime == "text/plain" and body.get("data"):
         texts.append(_decode(body["data"]))
-    elif mime == "text/html" and body.get("data") and not texts:
-        texts.append(_clean_html(_decode(body["data"])))
+    elif mime == "text/html" and body.get("data"):
+        htmls.append(_decode(body["data"]))
     for child in part.get("parts") or []:
-        _walk_parts(child, texts, attachment_flag)
+        _walk_parts(child, texts, htmls, attachment_flag)
+
 
 def parse_gmail_message(payload: dict) -> dict:
+    from .email_html import html_to_text, sanitize_email_html
     headers = {str(h.get("name", "")).lower(): str(h.get("value", "")) for h in payload.get("headers", [])}
     texts: list[str] = []
+    htmls: list[str] = []
     has_attachments = [False]
-    _walk_parts(payload, texts, has_attachments)
-    body = "\n".join(t for t in texts if t).strip()[:200000]
+    _walk_parts(payload, texts, htmls, has_attachments)
+    safe_html = sanitize_email_html("\\n".join(htmls))[:500000]
+    plain_body = "\\n".join(t for t in texts if t).strip()
+    body = (plain_body or html_to_text(safe_html)).strip()[:200000]
     return {
         "sender": headers.get("from", ""),
         "recipients": ", ".join(x for x in [headers.get("to", ""), headers.get("cc", "")] if x),
@@ -51,8 +56,10 @@ def parse_gmail_message(payload: dict) -> dict:
         "message_id": headers.get("message-id", ""),
         "references": headers.get("references", ""),
         "body": body,
+        "body_html": safe_html,
         "has_attachments": has_attachments[0],
     }
+
 
 def _tokens(account: EmailAccount) -> dict:
     if not account.encrypted_secret:
@@ -157,7 +164,7 @@ def sync_gmail(db: Session, account: EmailAccount, limit: int = 500) -> int:
             provider_message_id=provider_id, thread_key=str(data.get("threadId", provider_id)),
             sender=parsed["sender"], recipients=parsed["recipients"], subject=parsed["subject"],
             received_at=received, snippet=(data.get("snippet") or parsed["body"][:240])[:500],
-            body_text=parsed["body"], is_read=("UNREAD" not in data.get("labelIds", [])),
+            body_text=parsed["body"], body_html=parsed["body_html"], is_read=("UNREAD" not in data.get("labelIds", [])),
             has_attachments=parsed["has_attachments"]
         ))
         imported += 1
