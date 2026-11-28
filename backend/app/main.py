@@ -608,7 +608,7 @@ def message_detail(message_id: int, user: User = Depends(current_user), db: Sess
     return {
         "id": row.id, "account_id": row.account_id, "account_email": account.email if account else "",
         "sender": row.sender, "recipients": row.recipients, "subject": row.subject,
-        "received_at": row.received_at, "body_text": row.body_text,
+        "received_at": row.received_at, "body_text": row.body_text, "body_html": row.body_html,
         "summary": row.current_summary, "attachment_summary": row.attachment_summary, "thread_summary": row.thread_summary,
         "is_read": row.is_read, "is_starred": row.is_starred, "has_attachments": row.has_attachments
     }
@@ -641,6 +641,7 @@ def message_thread(
         "subject": row.subject,
         "received_at": row.received_at,
         "body_text": row.body_text,
+        "body_html": row.body_html,
         "summary": row.current_summary, "attachment_summary": row.attachment_summary,
         "is_read": row.is_read,
         "has_attachments": row.has_attachments,
