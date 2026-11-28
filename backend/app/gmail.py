@@ -46,8 +46,8 @@ def parse_gmail_message(payload: dict) -> dict:
     htmls: list[str] = []
     has_attachments = [False]
     _walk_parts(payload, texts, htmls, has_attachments)
-    safe_html = sanitize_email_html("\\n".join(htmls))[:500000]
-    plain_body = "\\n".join(t for t in texts if t).strip()
+    safe_html = sanitize_email_html("\n".join(htmls))[:500000]
+    plain_body = "\n".join(t for t in texts if t).strip()
     body = (plain_body or html_to_text(safe_html)).strip()[:200000]
     return {
         "sender": headers.get("from", ""),
