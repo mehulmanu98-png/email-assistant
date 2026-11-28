@@ -54,6 +54,7 @@ class EmailMessage(Base):
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     snippet: Mapped[str] = mapped_column(Text, default="")
     body_text: Mapped[str] = mapped_column(Text, default="")
+    body_html: Mapped[str] = mapped_column(Text, default="")
     current_summary: Mapped[str] = mapped_column(Text, default="")
     attachment_summary: Mapped[str] = mapped_column(Text, default="")
     thread_summary: Mapped[str] = mapped_column(Text, default="")
