@@ -31,7 +31,7 @@ _STYLE_PROPERTIES = {
     "padding-top", "text-align", "text-decoration", "vertical-align", "white-space",
     "width",
 }
-_BAD_CSS = re.compile(r"(?:url\\s*\\(|expression\\s*\\(|javascript:|@import|behavior\\s*:|-moz-binding)", re.I)
+_BAD_CSS = re.compile(r"(?:url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:|-moz-binding)", re.I)
 
 
 def _safe_style(value: str) -> str:
@@ -178,13 +178,13 @@ class _TextExtractor(HTMLParser):
         if tag.lower() in _BLOCKED_CONTENT:
             self.skip_depth += 1
         elif not self.skip_depth and tag.lower() in {"br", "p", "div", "tr", "li", "h1", "h2", "h3", "hr"}:
-            self.parts.append("\\n")
+            self.parts.append("\n")
 
     def handle_endtag(self, tag):
         if tag.lower() in _BLOCKED_CONTENT and self.skip_depth:
             self.skip_depth -= 1
         elif not self.skip_depth and tag.lower() in {"p", "div", "tr", "li", "h1", "h2", "h3"}:
-            self.parts.append("\\n")
+            self.parts.append("\n")
 
     def handle_data(self, data):
         if not self.skip_depth:
@@ -200,5 +200,5 @@ def html_to_text(value: str | None) -> str:
         parser.close()
     except Exception:
         return ""
-    lines = [re.sub(r"[ \\t]+", " ", line).strip() for line in "".join(parser.parts).splitlines()]
-    return re.sub(r"\\n{3,}", "\\n\\n", "\\n".join(line for line in lines if line)).strip()[:200000]
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in "".join(parser.parts).splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(line for line in lines if line)).strip()[:200000]
