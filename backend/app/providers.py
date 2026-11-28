@@ -21,7 +21,7 @@ def decode_mime(value: str | None) -> str:
         output.append(part.decode(charset or "utf-8", errors="replace") if isinstance(part, bytes) else part)
     return "".join(output)
 
-def _plain_body(message) -> str:
+def _decoded_body_parts(message):
     parts = message.walk() if message.is_multipart() else [message]
     plain, html = [], []
     for part in parts:
@@ -35,15 +35,20 @@ def _plain_body(message) -> str:
             plain.append(text)
         else:
             html.append(text)
-    if plain:
-        body = "\n".join(plain)
-    else:
-        body = "\n".join(html)
-        body = re.sub(r"(?is)<script[^>]*>.*?</script>", " ", body)
-        body = re.sub(r"(?is)<style[^>]*>.*?</style>", " ", body)
-        body = re.sub(r"(?s)<[^>]+>", " ", body)
-        body = body.replace("&nbsp;", " ").replace("&amp;", "&")
-    return body.strip()[:200000]
+    return "\n".join(plain).strip(), "\n".join(html).strip()
+
+
+def _html_body(message) -> str:
+    from .email_html import sanitize_email_html
+    _, html = _decoded_body_parts(message)
+    return sanitize_email_html(html)[:500000]
+
+
+def _plain_body(message) -> str:
+    from .email_html import html_to_text
+    plain, html = _decoded_body_parts(message)
+    return (plain or html_to_text(html)).strip()[:200000]
+
 
 def _connect(account: EmailAccount):
     if not account.encrypted_secret:
@@ -97,10 +102,17 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
             if not message_id:
                 message_id = (f"icloud-uidv-{uidvalidity}-{uid.decode(errors='ignore')}"
                               if uidvalidity else "icloud-uid-unverified-" + uid.decode(errors="ignore"))
-            if db.scalar(select(StoredMessage.id).where(
+            existing = db.scalar(select(StoredMessage).where(
                 StoredMessage.account_id == account.id,
                 StoredMessage.provider_message_id == message_id
-            )):
+            ))
+            if existing:
+                # Backfill the original HTML alternative for messages imported
+                # before rich email rendering was introduced.
+                if not existing.body_html:
+                    existing.body_html = _html_body(parsed)
+                    if not existing.body_text:
+                        existing.body_text = _plain_body(parsed)
                 continue
             try:
                 received = email.utils.parsedate_to_datetime(parsed.get("Date")) if parsed.get("Date") else now
@@ -122,7 +134,7 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
                     decode_mime(parsed.get("To")), decode_mime(parsed.get("Cc"))
                 ] if v),
                 subject=decode_mime(parsed.get("Subject")), received_at=received,
-                snippet=body[:240], body_text=body, is_read=(b"\\Seen" in metadata),
+                snippet=body[:240], body_text=body, body_html=_html_body(parsed), is_read=(b"\\Seen" in metadata),
                 has_attachments=has_attachments
             ))
             imported += 1
