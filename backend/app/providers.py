@@ -35,7 +35,7 @@ def _decoded_body_parts(message):
             plain.append(text)
         else:
             html.append(text)
-    return "\\n".join(plain).strip(), "\\n".join(html).strip()
+    return "\n".join(plain).strip(), "\n".join(html).strip()
 
 
 def _html_body(message) -> str:
