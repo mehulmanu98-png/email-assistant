@@ -102,10 +102,17 @@ def sync_icloud(db: Session, account: EmailAccount) -> int:
             if not message_id:
                 message_id = (f"icloud-uidv-{uidvalidity}-{uid.decode(errors='ignore')}"
                               if uidvalidity else "icloud-uid-unverified-" + uid.decode(errors="ignore"))
-            if db.scalar(select(StoredMessage.id).where(
+            existing = db.scalar(select(StoredMessage).where(
                 StoredMessage.account_id == account.id,
                 StoredMessage.provider_message_id == message_id
-            )):
+            ))
+            if existing:
+                # Backfill the original HTML alternative for messages imported
+                # before rich email rendering was introduced.
+                if not existing.body_html:
+                    existing.body_html = _html_body(parsed)
+                    if not existing.body_text:
+                        existing.body_text = _plain_body(parsed)
                 continue
             try:
                 received = email.utils.parsedate_to_datetime(parsed.get("Date")) if parsed.get("Date") else now
