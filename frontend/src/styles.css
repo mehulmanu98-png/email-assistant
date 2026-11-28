@@ -327,3 +327,23 @@
 .history-chevron{margin-left:auto;transition:transform .15s ease}
 .history-chevron.expanded{transform:rotate(90deg)}
 .gmail-thread-message summary{cursor:pointer}
+
+
+/* Render sanitized original HTML email bodies responsively. */
+.email-html-content{
+  width:100%;max-width:100%;min-width:0;overflow-wrap:anywhere;
+  color:#303846;font:14px/1.6 Arial,Helvetica,sans-serif;
+}
+.email-html-content *{max-width:100%;box-sizing:border-box}
+.email-html-content img{max-width:100%!important;height:auto!important;object-fit:contain}
+.email-html-content table{max-width:100%!important;border-collapse:collapse}
+.email-html-content td,.email-html-content th{overflow-wrap:anywhere}
+.email-html-content a{color:#1155cc;text-decoration:underline;overflow-wrap:anywhere}
+.email-html-content p{margin:0 0 1em}
+.email-html-content pre{white-space:pre-wrap;overflow-wrap:anywhere;font:inherit}
+.email-html-content blockquote{margin:0 0 1em 1em;padding-left:1em;border-left:2px solid #dce2ea;color:#667085}
+.email-html-content hr{border:0;border-top:1px solid #e5e7eb;margin:16px 0}
+@media(max-width:680px){
+  .email-html-content{font-size:13px}
+  .email-html-content table{display:block;overflow-x:auto}
+}
