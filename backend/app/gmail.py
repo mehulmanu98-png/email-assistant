@@ -148,13 +148,20 @@ def sync_gmail(db: Session, account: EmailAccount, limit: int = 500) -> int:
             break
     imported = 0
     for provider_id in message_ids:
-        if db.scalar(select(StoredMessage.id).where(
+        existing = db.scalar(select(StoredMessage).where(
             StoredMessage.account_id == account.id,
             StoredMessage.provider_message_id == provider_id
-        )):
+        ))
+        if existing and existing.body_html:
             continue
         data = gmail_request(db, account, "GET", "/messages/" + provider_id, params={"format": "full"})
         parsed = parse_gmail_message(data.get("payload") or {})
+        if existing:
+            # Backfill HTML for emails synced before rich email rendering.
+            existing.body_html = parsed["body_html"]
+            if not existing.body_text:
+                existing.body_text = parsed["body"]
+            continue
         try:
             received = datetime.fromtimestamp(int(data.get("internalDate", "0")) / 1000, timezone.utc)
         except Exception:
